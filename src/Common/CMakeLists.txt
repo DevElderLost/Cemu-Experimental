@@ -67,9 +67,8 @@ if(ANDROID)
   )
 endif()
 
-# All the targets wanting to use the precompiled.h header
-# have to link to CemuCommon
-target_precompile_headers(CemuCommon PUBLIC precompiled.h)
+# CemuCommon always builds the precompiled header
+target_precompile_headers(CemuCommon PRIVATE precompiled.h)
 target_include_directories(CemuCommon PUBLIC "../")
 
 target_link_libraries(CemuCommon PRIVATE
@@ -89,4 +88,9 @@ endif()
 # PUBLIC because:
 # - boost/predef/os.h is included in platform.h
 # - fmt/core.h is included in precompiled.h
-target_link_libraries(CemuCommon PUBLIC Boost::headers fmt::fmt)
+target_link_libraries(CemuCommon PUBLIC
+	Threads::Threads
+	Boost::nowide
+	Boost::headers
+	fmt::fmt
+)

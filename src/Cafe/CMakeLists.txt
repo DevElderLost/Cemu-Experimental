@@ -525,6 +525,7 @@ add_library(CemuCafe
   OS/RPL/rpl_structs.h
   OS/RPL/rpl_symbol_storage.cpp
   OS/RPL/rpl_symbol_storage.h
+  TitleList/GameInfo.cpp
   TitleList/GameInfo.h
   TitleList/ParsedMetaXml.h
   TitleList/SaveInfo.cpp
@@ -623,6 +624,8 @@ if(CEMU_ARCHITECTURE MATCHES "(aarch64)|(AARCH64)|(arm64)|(ARM64)")
 endif()
 
 set_property(TARGET CemuCafe PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+cemu_use_precompiled_header(CemuCafe)
 
 target_include_directories(CemuCafe PUBLIC "../")
 
