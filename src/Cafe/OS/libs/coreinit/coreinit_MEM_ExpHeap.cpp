@@ -483,6 +483,33 @@ void MEMFreeToExpHeap(MEMHeapHandle heap, void* mem)
 	IsValidExpHeapHandle_(heap);
 	if (mem)
 	{
+		// validate pointer is within heap bounds before acquiring lock
+		uintptr_t memAddr = (uintptr_t)mem;
+		uintptr_t heapStartAddr = (uintptr_t)heap->heapStart.GetPtr();
+		uintptr_t heapEndAddr = (uintptr_t)heap->heapEnd.GetPtr();
+		if (memAddr < heapStartAddr || memAddr >= heapEndAddr)
+		{
+			cemuLog_log(LogType::Force, "MEMFreeToExpHeap: mem 0x{:x} outside heap bounds [0x{:x}, 0x{:x})", memAddr, heapStartAddr, heapEndAddr);
+			return;
+		}
+
+		// validate block header is also within bounds
+		MBlock2_t* mBlock = MBLOCK_GET_HEADER(mem);
+		if ((uintptr_t)mBlock < heapStartAddr)
+		{
+			cemuLog_log(LogType::Force, "MEMFreeToExpHeap: block header 0x{:x} before heap start", (uintptr_t)mBlock);
+			return;
+		}
+
+		// validate typeCode before touching linked list
+		uint16 typeCode = mBlock->typeCode;
+		if (typeCode != MBLOCK_TYPE_USED)
+		{
+			cemuLog_log(LogType::Force, "MEMFreeToExpHeap: block at 0x{:x} has typeCode 0x{:x} (expected USED 0x{:x}), possible double-free or corruption",
+				(uintptr_t)mBlock, (uint32)typeCode, (uint32)MBLOCK_TYPE_USED);
+			return;
+		}
+
 		heap->AcquireLock();
 
 		cemu_assert_debug(_MEMExpHeap_IsValidUsedMBlock(mem, heap) == true);
@@ -491,7 +518,6 @@ void MEMFreeToExpHeap(MEMHeapHandle heap, void* mem)
 		MEMExpHeapHead2* expHeap = (MEMExpHeapHead2*)heap;
 
 		ExpMemBlockRegion region;
-		MBlock2_t* mBlock = MBLOCK_GET_HEADER(mem);
 		_MEMExpHeap_GetRegionOfMBlock(&region, mBlock);
 
 		_MEMExpHeap_RemoveMBlock(&expHeap->expHeapHead.chainUsedBlocks, mBlock);
