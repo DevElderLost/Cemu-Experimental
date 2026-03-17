@@ -1,5 +1,10 @@
 #pragma once
 #include "Cafe/HW/Latte/LatteAddrLib/LatteAddrLib.h"
+#include <cstring>
+
+#if defined(__aarch64__)
+#include <arm_neon.h>
+#endif
 
 template<typename texelBaseType, int texelBaseTypeCount, bool isEncodeDirection, bool isCompressed>
 void optimizedDecodeLoop_tm04_numSamples1_8x8(LatteTextureLoaderCtx* textureLoader, uint8* outputData, sint32 texelCountX, sint32 texelCountY)
@@ -115,6 +120,7 @@ void optimizedDecodeLoop_tm04_numSamples1_8x8_optimizedRowCopy(LatteTextureLoade
 				if ((sizeof(texelBaseType)*texelBaseTypeCount) == 8)
 				{
 					// bpp = 64
+					// source layout: pairs at offsets 0, +32, +64, +96 (in bytes)
 					if (texelBaseTypeCount == 1)
 					{
 						if (isEncodeDirection)
@@ -130,6 +136,17 @@ void optimizedDecodeLoop_tm04_numSamples1_8x8_optimizedRowCopy(LatteTextureLoade
 						}
 						else
 						{
+#if defined(__aarch64__)
+							// 4x 16-byte NEON loads from scattered source → 4x contiguous stores
+							uint8x16_t v0 = vld1q_u8((const uint8*)blockData);       // pixels 0-1
+							uint8x16_t v1 = vld1q_u8((const uint8*)blockData + 32);  // pixels 2-3
+							uint8x16_t v2 = vld1q_u8((const uint8*)blockData + 64);  // pixels 4-5
+							uint8x16_t v3 = vld1q_u8((const uint8*)blockData + 96);  // pixels 6-7
+							vst1q_u8((uint8*)blockOutput, v0);
+							vst1q_u8((uint8*)blockOutput + 16, v1);
+							vst1q_u8((uint8*)blockOutput + 32, v2);
+							vst1q_u8((uint8*)blockOutput + 48, v3);
+#else
 							blockOutput[0] = blockData[0];
 							blockOutput[1] = blockData[1];
 							blockOutput[2] = blockData[4];
@@ -138,6 +155,7 @@ void optimizedDecodeLoop_tm04_numSamples1_8x8_optimizedRowCopy(LatteTextureLoade
 							blockOutput[5] = blockData[9];
 							blockOutput[6] = blockData[12];
 							blockOutput[7] = blockData[13];
+#endif
 						}
 						blockOutput += 8;
 					}
@@ -147,12 +165,13 @@ void optimizedDecodeLoop_tm04_numSamples1_8x8_optimizedRowCopy(LatteTextureLoade
 				else if ((sizeof(texelBaseType)*texelBaseTypeCount) == 4)
 				{
 					// bpp = 32
+					// source layout: pixels 0-3 at offset 0, pixels 4-7 at offset +32 (in bytes)
 					if (texelBaseTypeCount == 1)
 					{
-						uint64* blockOutput64 = (uint64*)blockOutput;
-						uint64* blockData64 = (uint64*)blockData;
 						if (isEncodeDirection)
 						{
+							uint64* blockOutput64 = (uint64*)blockOutput;
+							uint64* blockData64 = (uint64*)blockData;
 							blockData64[0] = blockOutput64[0];
 							blockData64[1] = blockOutput64[1];
 							blockData64[4] = blockOutput64[2];
@@ -160,10 +179,20 @@ void optimizedDecodeLoop_tm04_numSamples1_8x8_optimizedRowCopy(LatteTextureLoade
 						}
 						else
 						{
+#if defined(__aarch64__)
+							// 2x 16-byte NEON loads from scattered source → 2x contiguous stores
+							uint8x16_t lo = vld1q_u8((const uint8*)blockData);       // pixels 0-3
+							uint8x16_t hi = vld1q_u8((const uint8*)blockData + 32);  // pixels 4-7
+							vst1q_u8((uint8*)blockOutput, lo);
+							vst1q_u8((uint8*)blockOutput + 16, hi);
+#else
+							uint64* blockOutput64 = (uint64*)blockOutput;
+							uint64* blockData64 = (uint64*)blockData;
 							blockOutput64[0] = blockData64[0];
 							blockOutput64[1] = blockData64[1];
 							blockOutput64[2] = blockData64[4];
 							blockOutput64[3] = blockData64[5];
+#endif
 						}
 						blockOutput += 8;
 					}
@@ -308,41 +337,18 @@ void optimizedDecodeLoops(LatteTextureLoaderCtx* textureLoader, uint8* outputDat
 	}
 	else if (textureLoader->tileMode == Latte::E_HWTILEMODE::TM_LINEAR_ALIGNED)
 	{
-		// optimized handler for linear textures
+		// optimized handler for linear textures — use bulk memcpy per row
 		uint32 sliceOffset = textureLoader->sliceIndex * textureLoader->height * textureLoader->pitch;
+		const size_t rowBytes = texelCountX * sizeof(texelBaseType) * texelBaseTypeCount;
 		for (sint32 y = 0; y < texelCountY; y++)
 		{
 			sint32 pixelOffset = (y*textureLoader->decodedTexelCountX) * (sizeof(texelBaseType)*texelBaseTypeCount);
-			texelBaseType* blockOutput = (texelBaseType*)(outputData + pixelOffset);
-			texelBaseType* blockData = (texelBaseType*)(textureLoader->inputData + (textureLoader->pitch * y + sliceOffset) * (sizeof(texelBaseType)*texelBaseTypeCount));
-			for (sint32 x = 0; x < texelCountX; x++)
-			{
-				// copy as-is
-				if (texelBaseTypeCount == 1)
-				{
-					if(isEncodeDirection)
-						*(texelBaseType*)blockData = *blockOutput;
-					else
-						*blockOutput = *(texelBaseType*)blockData;
-					blockData++;
-					blockOutput++;
-				}
-				else if (texelBaseTypeCount == 2)
-				{
-					if (isEncodeDirection)
-					{
-						((texelBaseType*)blockData)[0] = blockOutput[0];
-						((texelBaseType*)blockData)[1] = blockOutput[1];
-					}
-					else
-					{
-						blockOutput[0] = ((texelBaseType*)blockData)[0];
-						blockOutput[1] = ((texelBaseType*)blockData)[1];
-					}
-					blockData += 2;
-					blockOutput += 2;
-				}
-			}
+			uint8* blockOutput = outputData + pixelOffset;
+			uint8* blockData = textureLoader->inputData + (textureLoader->pitch * y + sliceOffset) * (sizeof(texelBaseType)*texelBaseTypeCount);
+			if (isEncodeDirection)
+				memcpy(blockData, blockOutput, rowBytes);
+			else
+				memcpy(blockOutput, blockData, rowBytes);
 		}
 	}
 	else
