@@ -475,6 +475,12 @@ void* MEMAllocFromExpHeapEx(MEMHeapHandle heap, uint32 size, sint32 alignment)
 
 	heap->ReleaseLock();
 
+	// Zero allocated memory - some games (e.g. Twilight Princess HD) rely on
+	// heap allocations being zero-initialized, matching behavior of freshly
+	// committed memory pages but not guaranteed by ExpHeap on reused blocks
+	if (mem)
+		memset(mem, 0, size);
+
 	return mem;
 }
 
