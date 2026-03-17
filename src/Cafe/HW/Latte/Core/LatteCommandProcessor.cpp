@@ -151,11 +151,7 @@ uint32 LatteCP_readU32Deprc()
 
 		g_renderer->NotifyLatteCommandProcessorIdle(); // let the renderer know in case it wants to flush any commands
 		performanceMonitor.gpuTime_idleTime.beginMeasuring();
-		// no command data available, spin in a busy loop for a bit then check again
-		for (sint32 busy = 0; busy < 80; busy++)
-		{
-			_mm_pause();
-		}
+		// no command data available, do housekeeping then sleep briefly
 		LatteThread_HandleOSScreen(); // check if new frame was presented via OSScreen API
 
 		if ( TCL::TCLGPUReadRBWord(cmdWord) )
@@ -166,7 +162,7 @@ uint32 LatteCP_readU32Deprc()
 		// still no command data available, do some other tasks
 		LatteTiming_HandleTimedVsync();
 		LatteAsyncCommands_checkAndExecute();
-		std::this_thread::yield();
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		performanceMonitor.gpuTime_idleTime.endMeasuring();
 	}
 	UNREACHABLE;
@@ -477,6 +473,7 @@ LatteCMDPtr LatteCP_itWaitRegMem(LatteCMDPtr cmd, uint32 nWords)
 			// check if any GPU events happened
 			LatteTiming_HandleTimedVsync();
 			LatteAsyncCommands_checkAndExecute();
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		}
 		performanceMonitor.gpuTime_fenceTime.endMeasuring();
 	}
@@ -583,7 +580,9 @@ LatteCMDPtr LatteCP_itMemSemaphore(LatteCMDPtr cmd, uint32 nWords)
 			if (oldVal == 0)
 			{
 				loopCount++;
-				if (loopCount > 2000)
+				if (loopCount > 100)
+					std::this_thread::sleep_for(std::chrono::milliseconds(1));
+				else
 					std::this_thread::yield();
 				continue;
 			}
@@ -908,14 +907,13 @@ LatteCMDPtr LatteCP_itHLEWaitForFlip(LatteCMDPtr cmd, uint32 nWords)
 	uint32 currentFlipCount = LatteGPUState.flipCounter;
 	while (true)
 	{
-		_mm_pause();
 		if (currentFlipCount != LatteGPUState.flipCounter)
 		{
 			break;
 		}
 		// check if any GPU events happened
 		LatteTiming_HandleTimedVsync();
-		std::this_thread::yield();
+		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 	}
 	return cmd;
 }

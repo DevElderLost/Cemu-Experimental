@@ -202,14 +202,65 @@ void VsyncDriver_notifyWindowPosChanged()
 
 #else
 
+#include <thread>
+#include <chrono>
+#include <atomic>
+
+class TimerVsyncHandler
+{
+public:
+	TimerVsyncHandler(void(*cbVSync)()) : m_vsyncCb(cbVSync)
+	{
+		m_shutdown.store(false);
+		m_thd = std::thread(&TimerVsyncHandler::vsyncThread, this);
+	}
+
+	~TimerVsyncHandler()
+	{
+		m_shutdown.store(true);
+		if (m_thd.joinable())
+			m_thd.join();
+	}
+
+private:
+	void vsyncThread()
+	{
+		using namespace std::chrono;
+		// ~60 Hz VSync interval (16.667ms)
+		constexpr auto vsyncInterval = microseconds(16667);
+		auto nextVsync = steady_clock::now() + vsyncInterval;
+
+		while (!m_shutdown.load(std::memory_order_relaxed))
+		{
+			std::this_thread::sleep_until(nextVsync);
+			if (m_vsyncCb)
+				m_vsyncCb();
+			nextVsync += vsyncInterval;
+			// catch up if we fell behind
+			auto now = steady_clock::now();
+			if (nextVsync < now)
+				nextVsync = now + vsyncInterval;
+		}
+	}
+
+	std::thread m_thd;
+	std::atomic<bool> m_shutdown;
+	void (*m_vsyncCb)() = nullptr;
+};
+
+TimerVsyncHandler* s_vsyncDriver = nullptr;
+std::mutex s_driverAccess;
+
 void VsyncDriver_startThread(void(*cbVSync)())
 {
-	cemu_assert_unimplemented();
+	std::unique_lock<std::mutex> ul(s_driverAccess);
+	if (!s_vsyncDriver)
+		s_vsyncDriver = new TimerVsyncHandler(cbVSync);
 }
 
 void VsyncDriver_notifyWindowPosChanged()
 {
-
+	// no-op on non-Windows platforms
 }
 
 #endif

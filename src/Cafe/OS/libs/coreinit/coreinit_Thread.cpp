@@ -15,6 +15,8 @@
 
 #include "util/helpers/helpers.h"
 
+#include <thread>
+
 #ifdef __arm64__
 #if defined(__clang__)
 #include <arm_acle.h>
@@ -1307,6 +1309,9 @@ namespace coreinit
 				__OSCheckSystemEvents();
 				if(g_isMulticoreMode == false)
 					coreIndex = (coreIndex + 1) % 3;
+				// yield when no threads are runnable to avoid 100% CPU spin
+				if (g_coreRunQueueThreadCount[coreIndex].isZero())
+					std::this_thread::sleep_for(std::chrono::milliseconds(1));
 			}
 			else
 			{

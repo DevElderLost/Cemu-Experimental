@@ -91,7 +91,7 @@ namespace TCL
 				distance = TCL_RING_BUFFER_SIZE;
 			if (distance >= numU32s + 1) // assume distance minus one, because we are never allowed to completely wrap around
 				break;
-			_mm_pause();
+			std::this_thread::yield();
 		}
 	}
 
