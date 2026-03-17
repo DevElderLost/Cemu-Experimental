@@ -111,6 +111,9 @@ namespace coreinit
 		}
 		// release spinlock
 		while (!spinlock->ownerThread.atomic_compare_exchange(currentThread, nullptr));
+#if defined(__aarch64__)
+		asm volatile("sev");
+#endif
 		__OSDeboostThread(currentThread);
 		return true;
 	}
@@ -132,7 +135,11 @@ namespace coreinit
 			{
 				while (!spinlock->ownerThread.atomic_compare_exchange(nullptr, currentThread))
 				{
+#if defined(__aarch64__)
+					asm volatile("wfe");
+#else
 					_mm_pause();
+#endif
 				}
 			}
 			else
@@ -210,6 +217,9 @@ namespace coreinit
 		OSRestoreInterrupts(spinlock->interruptMask);
 		spinlock->interruptMask = 1;
 		while (!spinlock->ownerThread.atomic_compare_exchange(currentThread, nullptr));
+#if defined(__aarch64__)
+		asm volatile("sev");
+#endif
 		__OSDeboostThread(currentThread);
 		return true;
 	}

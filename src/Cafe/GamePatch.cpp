@@ -84,7 +84,11 @@ void hleExport_xcx_enterCriticalSection(PPCInterpreter_t* hCPU)
 				osLib_returnFromFunction(hCPU, 0);
 				return;
 			}
+#if defined(__aarch64__)
+            asm volatile("wfe");
+#else
             _mm_pause();
+#endif
 		}
 		PPCCore_switchToScheduler();
 	}
