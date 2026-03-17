@@ -33,7 +33,8 @@
     },
     {
       "name": "boost-stacktrace",
-      "platform": "android"
+      "platform": "android",
+      "default-features": false
     },
     {
       "name": "boost-context",

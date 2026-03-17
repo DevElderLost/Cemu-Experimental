@@ -1455,6 +1455,10 @@ bool PPCRecompiler_generateX64Code(PPCRecFunction_t* PPCRecFunction, ppcImlGenCo
 			{
 				// no op
 			}
+			else if( imlInstruction->type == PPCREC_IML_TYPE_MEMORY_BARRIER )
+			{
+				// x86 has strong memory ordering, no barrier needed
+			}
 			else if( imlInstruction->type == PPCREC_IML_TYPE_FPR_LOAD )
 			{
 				if( PPCRecompilerX64Gen_imlInstruction_fpr_load(PPCRecFunction, ppcImlGenContext, &x64GenContext, imlInstruction, false) == false )

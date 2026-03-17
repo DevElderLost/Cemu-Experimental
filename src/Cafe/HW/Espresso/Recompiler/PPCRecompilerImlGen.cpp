@@ -770,11 +770,13 @@ bool PPCRecompilerImlGen_BCSPR(ppcImlGenContext_t* ppcImlGenContext, uint32 opco
 
 bool PPCRecompilerImlGen_ISYNC(ppcImlGenContext_t* ppcImlGenContext, uint32 opcode)
 {
+	ppcImlGenContext->emitInst().type = PPCREC_IML_TYPE_MEMORY_BARRIER;
 	return true;
 }
 
 bool PPCRecompilerImlGen_SYNC(ppcImlGenContext_t* ppcImlGenContext, uint32 opcode)
 {
+	ppcImlGenContext->emitInst().type = PPCREC_IML_TYPE_MEMORY_BARRIER;
 	return true;
 }
 
@@ -1949,6 +1951,8 @@ bool PPCRecompiler_decodePPCInstruction(ppcImlGenContext_t* ppcImlGenContext)
 			unsupportedInstructionFound = true;
 		ppcImlGenContext->hasFPUInstruction = true;
 		break;
+	case 3: // TWI - trap word immediate (treat as no-op, matching interpreter behavior)
+		break;
 	case 4: // opcode category - paired single
 		switch (PPC_getBits(opcode, 30, 5))
 		{
@@ -2308,7 +2312,8 @@ bool PPCRecompiler_decodePPCInstruction(ppcImlGenContext_t* ppcImlGenContext)
 				unsupportedInstructionFound = true;
 			break;
 		case 86:
-			// DCBF -> No-Op
+			// DCBF - data cache block flush, emit memory barrier on ARM
+			ppcImlGenContext->emitInst().type = PPCREC_IML_TYPE_MEMORY_BARRIER;
 			break;
 		case 87: // LBZX
 			PPCRecompilerImlGen_LOAD_INDEXED(ppcImlGenContext, opcode, 8, false, true, false);
@@ -2519,6 +2524,9 @@ bool PPCRecompiler_decodePPCInstruction(ppcImlGenContext_t* ppcImlGenContext)
 		case 983:
 			if (PPCRecompilerImlGen_STFIWX(ppcImlGenContext, opcode) == false)
 				unsupportedInstructionFound = true;
+			break;
+		case 854: // EIEIO - enforce in-order execution of I/O, treat as memory barrier on ARM
+			ppcImlGenContext->emitInst().type = PPCREC_IML_TYPE_MEMORY_BARRIER;
 			break;
 		case 1014:
 			if (PPCRecompilerImlGen_DCBZ(ppcImlGenContext, opcode) == false)

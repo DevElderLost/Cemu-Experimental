@@ -127,7 +127,8 @@ android {
                     "-DENABLE_DISCORD_RPC=OFF",
                     "-DENABLE_NSYSHID_LIBUSB=OFF",
                     "-DENABLE_WAYLAND=OFF",
-                    "-DENABLE_HIDAPI=OFF"
+                    "-DENABLE_HIDAPI=OFF",
+                    "-DUSE_SANITIZERS=OFF"
                 )
                 if (versionMajor != null && versionMinor != null) {
                     arguments.addAll(

@@ -141,6 +141,10 @@ void IMLInstruction::CheckRegisterUsage(IMLUsedRegisters* registersUsed) const
 	{
 		// no effect on registers
 	}
+	else if (type == PPCREC_IML_TYPE_MEMORY_BARRIER)
+	{
+		// no effect on registers
+	}
 	else if (type == PPCREC_IML_TYPE_MACRO)
 	{
 		if (operation == PPCREC_IML_MACRO_BL || operation == PPCREC_IML_MACRO_B_FAR || operation == PPCREC_IML_MACRO_LEAVE || operation == PPCREC_IML_MACRO_DEBUGBREAK || operation == PPCREC_IML_MACRO_COUNT_CYCLES || operation == PPCREC_IML_MACRO_HLE)
@@ -410,6 +414,10 @@ void IMLInstruction::RewriteGPR(const std::unordered_map<IMLRegID, IMLRegID>& tr
 		// no effect on registers
 	}
 	else if (type == PPCREC_IML_TYPE_NO_OP)
+	{
+		// no effect on registers
+	}
+	else if (type == PPCREC_IML_TYPE_MEMORY_BARRIER)
 	{
 		// no effect on registers
 	}

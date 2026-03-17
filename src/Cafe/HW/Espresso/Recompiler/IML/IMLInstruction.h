@@ -244,6 +244,8 @@ enum
 
 	PPCREC_IML_TYPE_FPR_COMPARE,		// r* = r* CMP[cond] r*
 
+	PPCREC_IML_TYPE_MEMORY_BARRIER,		// memory barrier (dmb on ARM, no-op on x86)
+
 	// X86 specific
 	PPCREC_IML_TYPE_X86_EFLAGS_JCC,
 };

@@ -380,6 +380,10 @@ void IMLDebug_DisassembleInstruction(const IMLInstruction& inst, std::string& di
 	{
 		strOutput.add("NOP");
 	}
+	else if (inst.type == PPCREC_IML_TYPE_MEMORY_BARRIER)
+	{
+		strOutput.add("MEMORY_BARRIER");
+	}
 	else if (inst.type == PPCREC_IML_TYPE_MACRO)
 	{
 		if (inst.operation == PPCREC_IML_MACRO_B_TO_REG)

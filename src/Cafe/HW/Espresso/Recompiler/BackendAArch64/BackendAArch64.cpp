@@ -1553,6 +1553,10 @@ bool PPCRecompiler_generateAArch64Code(struct PPCRecFunction_t* PPCRecFunction, 
 			{
 				// no op
 			}
+			else if (imlInstruction->type == PPCREC_IML_TYPE_MEMORY_BARRIER)
+			{
+				aarch64GenContext.dmb(BarOpt::ISH);
+			}
 			else if (imlInstruction->type == PPCREC_IML_TYPE_FPR_LOAD)
 			{
 				if (!aarch64GenContext.fpr_load(imlInstruction, false))
