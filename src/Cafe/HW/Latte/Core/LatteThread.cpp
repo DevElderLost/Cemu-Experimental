@@ -13,6 +13,7 @@
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
 #include "Cafe/HW/Latte/Core/LatteTexture.h"
 #include "util/helpers/helpers.h"
+#include "Common/cpu_affinity.h"
 
 #include <imgui.h>
 #include "config/ActiveSettings.h"
@@ -115,6 +116,8 @@ void LatteThread_HandleOSScreen()
 int Latte_ThreadEntry()
 {
 	SetThreadName("LatteThread");
+	// Pin GPU thread to big cores (exclude prime cores for thermal optimization)
+	CpuAffinity::PinCurrentThreadToBigCoresOnly();
 	sint32 w,h;
 	WindowSystem::GetWindowPhysSize(w,h);
 
@@ -201,7 +204,6 @@ int Latte_ThreadEntry()
 	// wait until CPU has called GX2Init()
 	while (LatteGPUState.gx2InitCalled == 0)
 	{
-		std::this_thread::yield();
 		std::this_thread::sleep_for(std::chrono::milliseconds(1));
 		LatteThread_HandleOSScreen();
 		if (Latte_GetStopSignal())

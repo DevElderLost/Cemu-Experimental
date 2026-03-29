@@ -83,6 +83,7 @@ namespace TCL
 	void TCLWaitForRBSpace(uint32be numU32s)
 	{
 		uint32 writeIndex = tclRingBufferA_writeIndex.load(std::memory_order::relaxed);
+		size_t spinCount = 0;
 		while (true)
 		{
 			uint32 readIndex = tclRingBufferA_readIndex.load(std::memory_order::acquire);
@@ -91,7 +92,11 @@ namespace TCL
 				distance = TCL_RING_BUFFER_SIZE;
 			if (distance >= numU32s + 1) // assume distance minus one, because we are never allowed to completely wrap around
 				break;
-			std::this_thread::yield();
+			spinCount++;
+			if (spinCount > 10)
+				std::this_thread::sleep_for(std::chrono::microseconds(100));
+			else
+				std::this_thread::yield();
 		}
 	}
 

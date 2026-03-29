@@ -371,6 +371,8 @@ private:
 
 		// renderpass
 		CachedFBOVk* activeRenderpassFBO{}; // the FBO of the currently active Vulkan renderpass
+		CachedFBOVk* lastClosedFBO{}; // for redundant RP break detection
+		uint32 currentRPDrawCalls{0}; // draw calls in current render pass
 
 		// drawcall state
 		PipelineInfo* activePipelineInfo{ nullptr };
@@ -633,6 +635,8 @@ private:
 	// buffer cache (attributes, uniforms and streamout)
 	VkBuffer m_bufferCache = VK_NULL_HANDLE;
 	VkDeviceMemory m_bufferCacheMemory = VK_NULL_HANDLE;
+	void* m_bufferCacheMappedMemory = nullptr; // non-null when using host-visible direct-write mode
+	bool m_bufferCacheUseDirectWrite = false;
 
 	// texture readback
 	VkBuffer m_textureReadbackBuffer = VK_NULL_HANDLE;

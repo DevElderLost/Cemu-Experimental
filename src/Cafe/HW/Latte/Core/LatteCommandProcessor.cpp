@@ -580,8 +580,8 @@ LatteCMDPtr LatteCP_itMemSemaphore(LatteCMDPtr cmd, uint32 nWords)
 			if (oldVal == 0)
 			{
 				loopCount++;
-				if (loopCount > 100)
-					std::this_thread::sleep_for(std::chrono::milliseconds(1));
+				if (loopCount > 10)
+					std::this_thread::sleep_for(std::chrono::microseconds(100));
 				else
 					std::this_thread::yield();
 				continue;
