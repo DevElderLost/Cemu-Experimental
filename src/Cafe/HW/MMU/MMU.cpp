@@ -108,6 +108,7 @@ void MMURange::unmapMem()
 	m_isMapped = false;
 }
 
+MMURange mmuRange_NULL_AREA				{ 0x00000000, 0x00010000, MMU_MEM_AREA_ID::NULL_AREA, "NULL_AREA" }; // zeroed guard page at address 0 - some games dereference null pointers during zone transitions
 MMURange mmuRange_LOW0					{ 0x00010000, 0x000F0000, MMU_MEM_AREA_ID::CODE_LOW0, "CODE_LOW0" }; // code cave (Cemuhook)
 MMURange mmuRange_TRAMPOLINE_AREA		{ 0x00E00000, 0x00200000, MMU_MEM_AREA_ID::CODE_TRAMPOLINE, "TRAMPOLINE_AREA" }; // code area for trampolines and imports
 MMURange mmuRange_CODECAVE				{ 0x01800000, 0x00400000, MMU_MEM_AREA_ID::CODE_CAVE, "CODECAVE" }; // code cave area (4MiB)

@@ -20,6 +20,7 @@ extern uint8* memory_base; // points to base of PowerPC address space
 
 enum class MMU_MEM_AREA_ID
 {
+	NULL_AREA, // zeroed guard page at PPC address 0 to prevent crashes on null pointer reads
 	CODE_LOW0,
 	CODE_TRAMPOLINE,
 	CODE_CAVE,
