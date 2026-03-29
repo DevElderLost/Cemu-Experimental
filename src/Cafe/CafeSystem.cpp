@@ -13,6 +13,7 @@
 #include "Cafe/TitleList/GameInfo.h"
 #include "Cafe/GraphicPack/GraphicPack2.h"
 #include "util/helpers/SystemException.h"
+#include "Common/cpu_affinity.h"
 #include "Common/cpu_features.h"
 #include "input/InputManager.h"
 #include "Cafe/CafeSystem.h"
@@ -410,6 +411,7 @@ void cemu_initForGame()
 	}
 	LatteGPUState.isDRCPrimary = ActiveSettings::DisplayDRCEnabled();
 	InfoLog_PrintActiveSettings();
+	CpuAffinity::InitializeCPUAffinityMapping();
 	Latte_Start();
 	// check for debugger entrypoint bp
     if (g_gdbstub)
