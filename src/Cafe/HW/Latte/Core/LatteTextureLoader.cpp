@@ -1,5 +1,6 @@
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
 #include "Cafe/HW/Latte/LatteAddrLib/LatteAddrLib.h"
+#include "Cafe/HW/Latte/Core/LattePerformanceMonitor.h"
 #include "config/ActiveSettings.h"
 #include "Cafe/CafeSystem.h"
 
@@ -643,7 +644,9 @@ void LatteTextureLoader_UpdateTextureSliceData(LatteTexture* tex, uint32 sliceIn
 #endif
 	if (tex->overwriteInfo.hasFormatOverwrite == false && tex->overwriteInfo.hasResolutionOverwrite == false)
 	{
+		performanceMonitor.gpuTime_textureDecode.beginMeasuring();
 		texDecoder->decode(&textureLoader, pixelData);
+		performanceMonitor.gpuTime_textureDecode.endMeasuring();
 	}
 #ifdef BENCHMARK_TEXTURE_DECODING
 	QueryPerformanceCounter(&benchmark_end);

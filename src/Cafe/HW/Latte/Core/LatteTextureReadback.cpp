@@ -22,6 +22,7 @@ std::queue<LatteTextureReadbackInfo*> sTextureActiveReadbackQueue; // readbacks 
 
 void LatteTextureReadback_StartTransfer(LatteTextureView* textureView)
 {
+	performanceMonitor.vk.numTextureReadbacksPerFrame.increment();
 	cemuLog_log(LogType::TextureReadback, "[TextureReadback-Start] PhysAddr {:08x} Res {}x{} Fmt {} Slice {} Mip {}", textureView->baseTexture->physAddress, textureView->baseTexture->width, textureView->baseTexture->height, textureView->baseTexture->format, textureView->firstSlice, textureView->firstMip);
 	HRTick currentTick = HighResolutionTimer().now().getTick();
 	// create info entry and store in ordered linked list

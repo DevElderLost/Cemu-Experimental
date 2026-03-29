@@ -1,5 +1,6 @@
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanRenderer.h"
 #include "Cafe/HW/Latte/Renderer/Vulkan/VulkanAPI.h"
+#include "Cafe/HW/Latte/Core/LattePerformanceMonitor.h"
 
 struct CopyShaderPushConstantData_t
 {
@@ -581,6 +582,7 @@ VKRObjectDescriptorSet* VulkanRenderer::surfaceCopy_getOrCreateDescriptorSet(VkC
 
 void VulkanRenderer::surfaceCopy_viaDrawcall(LatteTextureVk* srcTextureVk, sint32 texSrcMip, sint32 texSrcSlice, LatteTextureVk* dstTextureVk, sint32 texDstMip, sint32 texDstSlice, sint32 effectiveCopyWidth, sint32 effectiveCopyHeight)
 {
+	if (m_state.activeRenderpassFBO) performanceMonitor.vk.numRPBreak_surfaceCopy.increment();
 	draw_endRenderPass();
 
 	//debug_printf("surfaceCopy_viaDrawcall Src %04d %04d Dst %04d %04d CopySize %04d %04d\n", srcTextureVk->width, srcTextureVk->height, dstTextureVk->width, dstTextureVk->height, effectiveCopyWidth, effectiveCopyHeight);

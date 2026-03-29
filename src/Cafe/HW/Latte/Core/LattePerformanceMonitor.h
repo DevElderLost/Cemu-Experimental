@@ -108,6 +108,7 @@ typedef struct
 
 	LattePerfStatTimer gpuTime_dcStageDrawcallAPI; // drawcall api call
 	LattePerfStatTimer gpuTime_waitForAsync; // waiting for operations to complete (e.g. GX2DrawDone or force texture readback) Also includes texture readback and occlusion query polling logic
+	LattePerfStatTimer gpuTime_textureDecode; // time spent in tile-mode pixel reordering (texture decode/upload)
 
 	// generic
 	uint32 numCompiledVS; // number of compiled vertex shader programs
@@ -131,6 +132,23 @@ typedef struct
 		// per frame
 		LattePerfStatCounter numDrawBarriersPerFrame;
 		LattePerfStatCounter numBeginRenderpassPerFrame;
+		LattePerfStatCounter numLayoutTransitionsPerFrame;
+		LattePerfStatCounter numSelfDepRenderPassPerFrame;
+		LattePerfStatCounter numOptimalRenderPassPerFrame;
+		LattePerfStatCounter numTextureReadbacksPerFrame;
+		LattePerfStatCounter numStoreTransitionsPerFrame;
+		LattePerfStatCounter numSmallRenderPassPerFrame; // render passes with <=4 draw calls
+		LattePerfStatCounter numRedundantRPBreaksPerFrame; // FBO re-opened after just closing
+		// RP break reason counters
+		LattePerfStatCounter numRPBreak_clearSlice;
+		LattePerfStatCounter numRPBreak_clearDepth;
+		LattePerfStatCounter numRPBreak_texLoad;
+		LattePerfStatCounter numRPBreak_surfaceCopy;
+		LattePerfStatCounter numRPBreak_submitCB;
+		LattePerfStatCounter numRPBreak_query;
+		LattePerfStatCounter numRPBreak_readback;
+		LattePerfStatCounter numRPBreak_drawSetRP; // FBO change in draw_setRenderPass
+		LattePerfStatCounter numRPBreak_other;
 	}vk;
 
 	// calculated stats (per frame)

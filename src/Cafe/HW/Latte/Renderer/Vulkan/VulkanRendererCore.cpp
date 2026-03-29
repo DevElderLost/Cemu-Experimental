@@ -1042,9 +1042,12 @@ void VulkanRenderer::sync_inputTexturesChanged()
 void VulkanRenderer::sync_RenderPassLoadTextures(CachedFBOVk* fboVk)
 {
 	bool readFlushRequired = false;
+	// count layout transitions (one per FBO attachment)
+	uint32 numAttachments = 0;
 	// always called after draw_inputTexturesChanged()
 	for (auto& tex : fboVk->GetTextures())
 	{
+		numAttachments++;
 		LatteTextureVk* texVk = (LatteTextureVk*)tex;
 		// write-before-write
 		if (texVk->m_vkFlushIndex_write == m_state.currentFlushIndex)
@@ -1087,6 +1090,9 @@ void VulkanRenderer::sync_RenderPassLoadTextures(CachedFBOVk* fboVk)
 
 		m_state.currentFlushIndex++;
 	}
+	// count load-side layout transitions (one per attachment)
+	for (uint32 i = 0; i < numAttachments; i++)
+		performanceMonitor.vk.numLayoutTransitionsPerFrame.increment();
 }
 
 void VulkanRenderer::sync_RenderPassStoreTextures(CachedFBOVk* fboVk)
@@ -1096,6 +1102,7 @@ void VulkanRenderer::sync_RenderPassStoreTextures(CachedFBOVk* fboVk)
 	{
 		LatteTextureVk* texVk = (LatteTextureVk*)tex;
 		texVk->m_vkFlushIndex_write = flushIndex;
+		performanceMonitor.vk.numStoreTransitionsPerFrame.increment();
 	}
 }
 
@@ -1170,9 +1177,14 @@ void VulkanRenderer::draw_setRenderPass()
 	{
 		if (m_state.descriptorSetsChanged)
 			sync_inputTexturesChanged();
+		m_state.currentRPDrawCalls++;
 		return;
 	}
+	if (m_state.activeRenderpassFBO) performanceMonitor.vk.numRPBreak_drawSetRP.increment();
 	draw_endRenderPass();
+	// track redundant RP breaks (same FBO closed then immediately reopened)
+	if (m_state.lastClosedFBO == fboVk)
+		performanceMonitor.vk.numRedundantRPBreaksPerFrame.increment();
 	if (m_state.descriptorSetsChanged)
 		sync_inputTexturesChanged();
 
@@ -1202,22 +1214,29 @@ void VulkanRenderer::draw_setRenderPass()
 	}
 
 	m_state.activeRenderpassFBO = fboVk;
+	m_state.currentRPDrawCalls = 0;
 
 	vkObjRenderPass->flagForCurrentCommandBuffer();
 	vkObjFramebuffer->flagForCurrentCommandBuffer();
 
 	performanceMonitor.vk.numBeginRenderpassPerFrame.increment();
+	if (m_state.hasRenderSelfDependency)
+		performanceMonitor.vk.numSelfDepRenderPassPerFrame.increment();
 }
 
 void VulkanRenderer::draw_endRenderPass()
 {
 	if (!m_state.activeRenderpassFBO)
 		return;
+	if (m_state.currentRPDrawCalls <= 4)
+		performanceMonitor.vk.numSmallRenderPassPerFrame.increment();
 	if (m_featureControl.deviceExtensions.dynamic_rendering)
 		vkCmdEndRenderingKHR(m_state.currentCommandBuffer);
 	else
 		vkCmdEndRenderPass(m_state.currentCommandBuffer);
 	sync_RenderPassStoreTextures(m_state.activeRenderpassFBO);
+	m_state.lastClosedFBO = m_state.activeRenderpassFBO;
+	m_state.currentRPDrawCalls = 0;
 	m_state.activeRenderpassFBO = nullptr;
 }
 
@@ -1326,6 +1345,7 @@ void VulkanRenderer::draw_execute(uint32 baseVertex, uint32 baseInstance, uint32
 	LatteStreamout_PrepareDrawcall(count, instanceCount);
 
 	// update uniform vars
+	performanceMonitor.gpuTime_dcStageShaderAndUniformMgr.beginMeasuring();
 	LatteDecompilerShader* vertexShader = LatteSHRC_GetActiveVertexShader();
 	LatteDecompilerShader* pixelShader = LatteSHRC_GetActivePixelShader();
 	LatteDecompilerShader* geometryShader = LatteSHRC_GetActiveGeometryShader();
@@ -1338,8 +1358,10 @@ void VulkanRenderer::draw_execute(uint32 baseVertex, uint32 baseInstance, uint32
 		uniformData_updateUniformVars(VulkanRendererConst::SHADER_STAGE_INDEX_GEOMETRY, geometryShader);
 	// store where the read pointer should go after command buffer execution
 	m_cmdBufferUniformRingbufIndices[m_commandBufferIndex] = m_uniformVarBufferWriteIndex;
+	performanceMonitor.gpuTime_dcStageShaderAndUniformMgr.endMeasuring();
 
 	// process index data
+	performanceMonitor.gpuTime_dcStageIndexMgr.beginMeasuring();
 	const LattePrimitiveMode primitiveMode = static_cast<LattePrimitiveMode>(LatteGPUState.contextRegister[mmVGT_PRIMITIVE_TYPE]);
 
 	Renderer::INDEX_TYPE hostIndexType;
@@ -1372,7 +1394,9 @@ void VulkanRenderer::draw_execute(uint32 baseVertex, uint32 baseInstance, uint32
 		else
 			isPrevIndexData = true;
 	}
+	performanceMonitor.gpuTime_dcStageIndexMgr.endMeasuring();
 
+	performanceMonitor.gpuTime_dcStageVertexMgr.beginMeasuring();
 	if (m_useHostMemoryForCache)
 	{
 		// direct memory access (Wii U memory space imported as a Vulkan buffer), update buffer bindings
@@ -1392,6 +1416,7 @@ void VulkanRenderer::draw_execute(uint32 baseVertex, uint32 baseInstance, uint32
 		// synchronize vertex and uniform cache and update buffer bindings
 		LatteBufferCache_Sync(indexMin + baseVertex, indexMax + baseVertex, baseInstance, instanceCount);
 	}
+	performanceMonitor.gpuTime_dcStageVertexMgr.endMeasuring();
 
 	PipelineInfo* pipeline_info;
 
@@ -1430,6 +1455,7 @@ void VulkanRenderer::draw_execute(uint32 baseVertex, uint32 baseInstance, uint32
 	}
 
 
+	performanceMonitor.gpuTime_dcStageTextures.beginMeasuring();
 	VkDescriptorSetInfo *vertexDS = nullptr, *pixelDS = nullptr, *geometryDS = nullptr;
 	if (!isFirst && m_state.activeVertexDS)
 	{
@@ -1446,8 +1472,11 @@ void VulkanRenderer::draw_execute(uint32 baseVertex, uint32 baseInstance, uint32
 		m_state.activeGeometryDS = geometryDS;
 		m_state.descriptorSetsChanged = true;
 	}
+	performanceMonitor.gpuTime_dcStageTextures.endMeasuring();
 
+	performanceMonitor.gpuTime_dcStageMRT.beginMeasuring();
 	draw_setRenderPass();
+	performanceMonitor.gpuTime_dcStageMRT.endMeasuring();
 
 	if (m_state.currentPipeline != vkObjPipeline->GetPipeline())
 	{
@@ -1517,10 +1546,12 @@ void VulkanRenderer::draw_execute(uint32 baseVertex, uint32 baseInstance, uint32
 	}
 
 	// draw
+	performanceMonitor.gpuTime_dcStageDrawcallAPI.beginMeasuring();
 	if (hostIndexType != INDEX_TYPE::NONE)
 		vkCmdDrawIndexed(m_state.currentCommandBuffer, hostIndexCount, instanceCount, 0, baseVertex, baseInstance);
 	else
 		vkCmdDraw(m_state.currentCommandBuffer, count, instanceCount, baseVertex, baseInstance);
+	performanceMonitor.gpuTime_dcStageDrawcallAPI.endMeasuring();
 
 	LatteStreamout_FinishDrawcall(m_useHostMemoryForCache);
 
