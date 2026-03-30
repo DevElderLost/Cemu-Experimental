@@ -4,9 +4,26 @@ import android.app.Activity
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import info.cemu.cemu.common.android.context.internalFolder
 import info.cemu.cemu.common.ui.components.Button
 import info.cemu.cemu.common.ui.components.ScreenContent
@@ -25,6 +42,9 @@ fun UserDataSettingsScreen(navigateBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
+    var isProcessing by remember { mutableStateOf(false) }
+    var processingLabel by remember { mutableStateOf("") }
+
     // Launcher: buka Document Provider untuk menentukan lokasi & nama file zip (Export)
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -32,8 +52,9 @@ fun UserDataSettingsScreen(navigateBack: () -> Unit) {
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
                 scope.launch {
+                    processingLabel = tr("Exporting data, please wait...")
+                    isProcessing = true
                     withContext(Dispatchers.IO) {
-                        // Sumber: internalFolder() — sama dengan baseDirectory di DocumentsProvider
                         val baseDirectory = context.internalFolder()
                         context.contentResolver.openOutputStream(uri)?.use { out ->
                             ZipOutputStream(out).use { zip ->
@@ -48,6 +69,7 @@ fun UserDataSettingsScreen(navigateBack: () -> Unit) {
                             }
                         }
                     }
+                    isProcessing = false
                 }
             }
         }
@@ -60,8 +82,9 @@ fun UserDataSettingsScreen(navigateBack: () -> Unit) {
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
                 scope.launch {
+                    processingLabel = tr("Importing data, please wait...")
+                    isProcessing = true
                     withContext(Dispatchers.IO) {
-                        // Tujuan: internalFolder() — sama dengan baseDirectory di DocumentsProvider
                         val baseDirectory = context.internalFolder()
                         context.contentResolver.openInputStream(uri)?.use { input ->
                             ZipInputStream(input).use { zip ->
@@ -76,6 +99,36 @@ fun UserDataSettingsScreen(navigateBack: () -> Unit) {
                             }
                         }
                     }
+                    isProcessing = false
+                }
+            }
+        }
+    }
+
+    // Dialog popup progress saat proses berjalan
+    if (isProcessing) {
+        Dialog(
+            onDismissRequest = {},
+            properties = DialogProperties(
+                dismissOnBackPress = false,
+                dismissOnClickOutside = false,
+            )
+        ) {
+            Surface(
+                shape = MaterialTheme.shapes.medium,
+                tonalElevation = 6.dp,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                ) {
+                    Text(
+                        text = processingLabel,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
             }
         }
@@ -85,25 +138,35 @@ fun UserDataSettingsScreen(navigateBack: () -> Unit) {
         appBarText = tr("User data"),
         navigateBack = navigateBack,
     ) {
+        Text(
+            text = tr("Use these options to back up or restore your user data. Export will create a ZIP file containing all your saved data, settings, and configurations. Import will extract a previously exported ZIP file and overwrite the existing data."),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+        )
         Button(
             label = tr("Export data"),
             onClick = {
-                val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                    addCategory(Intent.CATEGORY_OPENABLE)
-                    type = "application/zip"
-                    putExtra(Intent.EXTRA_TITLE, "cemu_userdata_backup.zip")
+                if (!isProcessing) {
+                    val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = "application/zip"
+                        putExtra(Intent.EXTRA_TITLE, "cemu_userdata_backup.zip")
+                    }
+                    exportLauncher.launch(intent)
                 }
-                exportLauncher.launch(intent)
             }
         )
         Button(
             label = tr("Import data"),
             onClick = {
-                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                    addCategory(Intent.CATEGORY_OPENABLE)
-                    type = "application/zip"
+                if (!isProcessing) {
+                    val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                        addCategory(Intent.CATEGORY_OPENABLE)
+                        type = "application/zip"
+                    }
+                    importLauncher.launch(intent)
                 }
-                importLauncher.launch(intent)
             }
         )
     }
