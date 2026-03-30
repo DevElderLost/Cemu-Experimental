@@ -16,6 +16,7 @@ import info.cemu.cemu.settings.input.InputSettingsScreen
 import info.cemu.cemu.settings.input.InputSettingsScreenActions
 import info.cemu.cemu.settings.inputoverlay.InputOverlaySettingsScreen
 import info.cemu.cemu.settings.overlay.OverlaySettingsScreen
+import info.cemu.cemu.settings.userdata.UserDataSettingsScreen
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -60,6 +61,9 @@ private object SettingsRoutes {
 
     @Serializable
     object AccountSettingsScreenRoute
+
+    @Serializable
+    object UserDataSettingsScreenRoute
 }
 
 fun NavGraphBuilder.settingsNavigation(navController: NavHostController) {
@@ -73,7 +77,8 @@ fun NavGraphBuilder.settingsNavigation(navController: NavHostController) {
                     goToGraphicsSettings = { navController.navigate(SettingsRoutes.GraphicsSettingsScreenRoute) },
                     goToAudioSettings = { navController.navigate(SettingsRoutes.AudioSettingsScreenRoute) },
                     goToOverlaySettings = { navController.navigate(SettingsRoutes.OverlaySettingsScreenRoute) },
-                    goToAccountSettings = { navController.navigate(SettingsRoutes.AccountSettingsScreenRoute) }
+                    goToAccountSettings = { navController.navigate(SettingsRoutes.AccountSettingsScreenRoute) },
+                    goToUserDataSettings = { navController.navigate(SettingsRoutes.UserDataSettingsScreenRoute) }
                 )
             )
         }
@@ -148,6 +153,12 @@ fun NavGraphBuilder.settingsNavigation(navController: NavHostController) {
 
         composable<SettingsRoutes.AccountSettingsScreenRoute> {
             AccountSettingsScreen(
+                navigateBack = { navController.popBackStack() },
+            )
+        }
+
+        composable<SettingsRoutes.UserDataSettingsScreenRoute> {
+            UserDataSettingsScreen(
                 navigateBack = { navController.popBackStack() },
             )
         }

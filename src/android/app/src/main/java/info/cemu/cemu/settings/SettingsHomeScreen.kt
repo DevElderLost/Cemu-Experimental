@@ -13,6 +13,7 @@ data class SettingsHomeScreenActions(
     val goToAudioSettings: () -> Unit,
     val goToAccountSettings: () -> Unit,
     val goToOverlaySettings: () -> Unit,
+    val goToUserDataSettings: () -> Unit,
 )
 
 @Composable
@@ -44,6 +45,10 @@ fun SettingsHomeScreen(navigateBack: () -> Unit, actions: SettingsHomeScreenActi
         Button(
             label = tr("Account settings"),
             onClick = dropUnlessResumed(block = actions.goToAccountSettings)
+        )
+        Button(
+            label = tr("User data"),
+            onClick = dropUnlessResumed(block = actions.goToUserDataSettings)
         )
     }
 }
