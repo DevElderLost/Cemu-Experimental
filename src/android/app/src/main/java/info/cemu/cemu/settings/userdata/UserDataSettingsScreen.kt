@@ -2,12 +2,12 @@ package info.cemu.cemu.settings.userdata
 
 import android.app.Activity
 import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import info.cemu.cemu.common.android.context.internalFolder
 import info.cemu.cemu.common.ui.components.Button
 import info.cemu.cemu.common.ui.components.ScreenContent
 import info.cemu.cemu.common.ui.localization.tr
@@ -32,18 +32,22 @@ fun UserDataSettingsScreen(navigateBack: () -> Unit) {
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
                 scope.launch {
-                    exportDataToZip(
-                        filesDir = context.filesDir,
-                        destUri = uri,
-                        writeBytes = { bytes ->
-                            context.contentResolver.openOutputStream(uri)?.use { out ->
-                                out.write(bytes)
+                    withContext(Dispatchers.IO) {
+                        // Sumber: internalFolder() — sama dengan baseDirectory di DocumentsProvider
+                        val baseDirectory = context.internalFolder()
+                        context.contentResolver.openOutputStream(uri)?.use { out ->
+                            ZipOutputStream(out).use { zip ->
+                                baseDirectory.walkTopDown().forEach { file ->
+                                    if (file.isFile) {
+                                        val entryName = file.relativeTo(baseDirectory).path
+                                        zip.putNextEntry(ZipEntry(entryName))
+                                        FileInputStream(file).use { it.copyTo(zip) }
+                                        zip.closeEntry()
+                                    }
+                                }
                             }
-                        },
-                        openOutputStream = { destUri ->
-                            context.contentResolver.openOutputStream(destUri)
                         }
-                    )
+                    }
                 }
             }
         }
@@ -56,12 +60,22 @@ fun UserDataSettingsScreen(navigateBack: () -> Unit) {
         if (result.resultCode == Activity.RESULT_OK) {
             result.data?.data?.let { uri ->
                 scope.launch {
-                    importDataFromZip(
-                        filesDir = context.filesDir,
-                        openInputStream = {
-                            context.contentResolver.openInputStream(uri)
+                    withContext(Dispatchers.IO) {
+                        // Tujuan: internalFolder() — sama dengan baseDirectory di DocumentsProvider
+                        val baseDirectory = context.internalFolder()
+                        context.contentResolver.openInputStream(uri)?.use { input ->
+                            ZipInputStream(input).use { zip ->
+                                var entry = zip.nextEntry
+                                while (entry != null) {
+                                    val outFile = File(baseDirectory, entry.name)
+                                    outFile.parentFile?.mkdirs()
+                                    outFile.outputStream().use { zip.copyTo(it) }
+                                    zip.closeEntry()
+                                    entry = zip.nextEntry
+                                }
+                            }
                         }
-                    )
+                    }
                 }
             }
         }
@@ -92,51 +106,5 @@ fun UserDataSettingsScreen(navigateBack: () -> Unit) {
                 importLauncher.launch(intent)
             }
         )
-    }
-}
-
-/**
- * Mengkompresi seluruh isi [filesDir] (Android/data/<package>/files/)
- * ke dalam file zip di lokasi [destUri] yang dipilih user.
- */
-private suspend fun exportDataToZip(
-    filesDir: File,
-    destUri: Uri,
-    writeBytes: suspend (ByteArray) -> Unit,
-    openOutputStream: (Uri) -> java.io.OutputStream?,
-) = withContext(Dispatchers.IO) {
-    openOutputStream(destUri)?.use { out ->
-        ZipOutputStream(out).use { zip ->
-            filesDir.walkTopDown().forEach { file ->
-                if (file.isFile) {
-                    val entryName = file.relativeTo(filesDir).path
-                    zip.putNextEntry(ZipEntry(entryName))
-                    FileInputStream(file).use { it.copyTo(zip) }
-                    zip.closeEntry()
-                }
-            }
-        }
-    }
-}
-
-/**
- * Mengekstrak file zip yang dipilih user dan menimpa file yang ada
- * di [filesDir] (Android/data/<package>/files/).
- */
-private suspend fun importDataFromZip(
-    filesDir: File,
-    openInputStream: () -> java.io.InputStream?,
-) = withContext(Dispatchers.IO) {
-    openInputStream()?.use { input ->
-        ZipInputStream(input).use { zip ->
-            var entry = zip.nextEntry
-            while (entry != null) {
-                val outFile = File(filesDir, entry.name)
-                outFile.parentFile?.mkdirs()
-                outFile.outputStream().use { zip.copyTo(it) }
-                zip.closeEntry()
-                entry = zip.nextEntry
-            }
-        }
     }
 }
