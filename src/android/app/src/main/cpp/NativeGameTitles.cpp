@@ -1,6 +1,7 @@
 #include "AndroidGameTitleLoadedCallback.h"
 #include "Cafe/TitleList/SaveList.h"
 #include "Cafe/GameProfile/GameProfile.h"
+#include "config/ActiveSettings.h"
 #include "JNIUtils.h"
 #include "GameTitleLoader.h"
 #include "WuaConverter.h"

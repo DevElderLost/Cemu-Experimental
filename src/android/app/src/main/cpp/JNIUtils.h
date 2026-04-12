@@ -1,7 +1,10 @@
 #pragma once
 
+#include <string>
+#include <vector>
 #include <android/native_window_jni.h>
 #include <jni.h>
+#include <boost/nowide/convert.hpp>
 
 namespace JNIUtils
 {
