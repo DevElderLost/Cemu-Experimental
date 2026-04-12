@@ -125,25 +125,6 @@ class fscDeviceWUAC : public fscDeviceC
 		cemu_assert_debug(!HAS_FLAG(accessFlags, FSC_ACCESS_FLAG::WRITE_PERMISSION)); // writing to WUA is not supported
 
 		ZArchiveNodeHandle fileHandle = archive->LookUp(path, true, true);
-		if (fileHandle == ZARCHIVE_INVALID_NODE && path.find('@') != std::string_view::npos)
-		{
-			// Some WUA packers URL-encode reserved characters in entry names
-			// (e.g. '@' stored as "%40"). ZArchive compares names byte-literally,
-			// so a lookup for "@bg0010.arc" misses "%40bg0010.arc". Retry with
-			// '@' percent-encoded. This affects TPHD (Forest Temple rooms fail
-			// to mount without it), and likely other titles using the same
-			// Nintendo EAD filename convention.
-			std::string retryPath;
-			retryPath.reserve(path.size() + 16);
-			for (char c : path)
-			{
-				if (c == '@')
-					retryPath += "%40";
-				else
-					retryPath += c;
-			}
-			fileHandle = archive->LookUp(retryPath, true, true);
-		}
 		if (fileHandle == ZARCHIVE_INVALID_NODE)
 		{
 			*fscStatus = FSC_STATUS_FILE_NOT_FOUND;
