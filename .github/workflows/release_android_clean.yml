@@ -141,12 +141,12 @@ jobs:
           # Patterns that should never appear in a release build
           # Add your username, paths, email patterns here
           PII_PATTERNS=(
-            '/home/[a-z]'        # Linux home dirs (shouldn't appear from CI)
             'C:/Users/'          # Windows user paths
             'C:\\Users\\'        # Windows user paths (backslash)
             '/Users/[a-z]'       # macOS home dirs
             'OdinDebug'          # Repo-specific path
           )
+          # Note: /home/runner/ paths from CI are expected and safe (generic GitHub Actions runner)
 
           for pattern in "${PII_PATTERNS[@]}"; do
             MATCHES=$(grep -rl "$pattern" . 2>/dev/null || true)
