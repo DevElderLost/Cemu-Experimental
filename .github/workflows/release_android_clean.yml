@@ -1,0 +1,199 @@
+name: Build clean Android release
+on:
+  workflow_dispatch:
+    inputs:
+      version_major:
+        description: Version major (e.g. 0)
+        required: true
+        type: string
+        default: '0'
+      version_minor:
+        description: Version minor (e.g. 4)
+        required: true
+        type: string
+        default: '4'
+
+env:
+  VCPKG_ROOT: "${{github.workspace}}/dependencies/vcpkg"
+  VCPKG_BINARY_SOURCES: "clear;nuget,GitHub,readwrite"
+  VCPKG_FORCE_DOWNLOADED_BINARIES: true
+
+jobs:
+  build:
+    name: Build and scan APK
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+          fetch-depth: 0
+
+      - name: Install system dependencies
+        run: |
+          sudo apt update -qq
+          sudo apt install -y gettext mono-complete
+
+      - name: Uncompile message catalogs
+        run: |
+          for mo_file in bin/resources/*/cemu.mo
+          do
+            language_code=$(basename $(dirname $mo_file))
+            po_file=src/android/app/src/main/assets/translations/$language_code/cemu.po
+            mkdir -p $(dirname $po_file)
+            msgunfmt $mo_file -o $po_file || echo "Failed to uncompile $mo_file"
+          done
+
+      - name: Setup vcpkg binary cache
+        uses: ./.github/actions/set-up-vcpkg-binary-cache-action
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Build APK
+        env:
+          ANDROID_STORE_FILE_BASE64: ${{ secrets.ANDROID_STORE_FILE_BASE64 }}
+          ANDROID_KEY_STORE_PASSWORD: ${{ secrets.ANDROID_KEY_STORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          EMULATOR_VERSION_MAJOR: ${{ inputs.version_major }}
+          EMULATOR_VERSION_MINOR: ${{ inputs.version_minor }}
+        run: |
+          export JAVA_HOME=$JAVA_HOME_21_X64
+
+          cd ./src/android
+
+          if [[ -n "$ANDROID_STORE_FILE_BASE64" ]]; then
+            base64 --decode <<< "${ANDROID_STORE_FILE_BASE64}" > store.jks
+            export ANDROID_STORE_FILE=$(pwd)/store.jks
+            echo "Android signing store file configured."
+          else
+            echo "WARNING: No signing key provided. APK will use debug signing."
+          fi
+
+          ./gradlew assembleRelease
+
+      - name: Strip .comment sections from native libraries
+        run: |
+          APK_DIR="src/android/app/build/outputs/apk/release"
+          APK=$(ls $APK_DIR/*.apk | head -1)
+          WORK_DIR=$(mktemp -d)
+
+          cd $WORK_DIR
+          unzip -q "$GITHUB_WORKSPACE/$APK"
+
+          # Strip .comment sections that contain compiler paths
+          for so in lib/arm64-v8a/*.so; do
+            if [ -f "$so" ]; then
+              echo "Stripping .comment from $so"
+              llvm-objcopy --remove-section .comment "$so" || true
+            fi
+          done
+
+          # Repackage APK
+          rm -f "$GITHUB_WORKSPACE/$APK"
+          zip -r -q "$GITHUB_WORKSPACE/$APK" .
+
+          # Re-align
+          cd "$GITHUB_WORKSPACE"
+          zipalign -f 4 "$APK" "${APK}.aligned"
+          mv "${APK}.aligned" "$APK"
+
+          # Re-sign if keystore is available
+          if [[ -f "src/android/store.jks" ]]; then
+            apksigner sign \
+              --ks src/android/store.jks \
+              --ks-key-alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
+              --ks-pass "pass:${{ secrets.ANDROID_KEY_STORE_PASSWORD }}" \
+              "$APK"
+          else
+            # Sign with debug key
+            apksigner sign \
+              --ks ~/.android/debug.keystore \
+              --ks-key-alias androiddebugkey \
+              --ks-pass pass:android \
+              "$APK"
+          fi
+
+          rm -rf $WORK_DIR
+
+      - name: PII scan
+        run: |
+          APK_DIR="src/android/app/build/outputs/apk/release"
+          APK=$(ls $APK_DIR/*.apk | head -1)
+          WORK_DIR=$(mktemp -d)
+
+          cd $WORK_DIR
+          unzip -q "$GITHUB_WORKSPACE/$APK"
+
+          echo "=== Scanning APK for PII leaks ==="
+          FOUND=0
+
+          # Patterns that should never appear in a release build
+          # Add your username, paths, email patterns here
+          PII_PATTERNS=(
+            '/home/[a-z]'        # Linux home dirs (shouldn't appear from CI)
+            'C:/Users/'          # Windows user paths
+            'C:\\Users\\'        # Windows user paths (backslash)
+            '/Users/[a-z]'       # macOS home dirs
+            'OdinDebug'          # Repo-specific path
+          )
+
+          for pattern in "${PII_PATTERNS[@]}"; do
+            MATCHES=$(grep -rl "$pattern" . 2>/dev/null || true)
+            if [[ -n "$MATCHES" ]]; then
+              echo "FAIL: Pattern '$pattern' found in:"
+              for f in $MATCHES; do
+                # Show context around the match
+                grep -o ".\{0,40\}${pattern}.\{0,40\}" "$f" 2>/dev/null | head -5 | while read line; do
+                  echo "  $f: $line"
+                done
+              done
+              FOUND=1
+            fi
+          done
+
+          # Also scan strings from .so files specifically
+          for so in lib/arm64-v8a/*.so; do
+            if [ -f "$so" ]; then
+              for pattern in "${PII_PATTERNS[@]}"; do
+                HITS=$(strings "$so" | grep -i "$pattern" || true)
+                if [[ -n "$HITS" ]]; then
+                  echo "FAIL: '$pattern' found in strings of $so:"
+                  echo "$HITS" | head -5 | sed 's/^/  /'
+                  FOUND=1
+                fi
+              done
+            fi
+          done
+
+          rm -rf $WORK_DIR
+
+          if [[ $FOUND -eq 1 ]]; then
+            echo ""
+            echo "=== PII SCAN FAILED ==="
+            echo "The APK contains personal/local build paths."
+            echo "This should not happen on CI. Check build configuration."
+            exit 1
+          fi
+
+          echo "=== PII scan PASSED — no personal information found ==="
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cemu-${{ inputs.version_major }}.${{ inputs.version_minor }}-android
+          path: src/android/app/build/outputs/apk/release/*.apk
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ inputs.version_major }}.${{ inputs.version_minor }}"
+          APK_DIR="src/android/app/build/outputs/apk/release"
+          APK=$(ls $APK_DIR/*.apk | head -1)
+          mv "$APK" "$APK_DIR/Cemu-${VERSION}-android.apk"
+
+          gh release create "v${VERSION}" \
+            --title "Cemu Android ${VERSION}" \
+            --notes "Android release ${VERSION}" \
+            "$APK_DIR/Cemu-${VERSION}-android.apk"
