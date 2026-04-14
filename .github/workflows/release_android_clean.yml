@@ -74,6 +74,17 @@ jobs:
 
       - name: Strip .comment sections from native libraries
         run: |
+          # Resolve tool paths from Android SDK/NDK
+          NDK_DIR="$ANDROID_NDK_HOME"
+          OBJCOPY=$(find "$NDK_DIR/toolchains/llvm/prebuilt" -name "llvm-objcopy" | head -1)
+          BUILD_TOOLS_DIR="$ANDROID_HOME/build-tools/$(ls $ANDROID_HOME/build-tools/ | sort -V | tail -1)"
+          ZIPALIGN="$BUILD_TOOLS_DIR/zipalign"
+          APKSIGNER="$BUILD_TOOLS_DIR/apksigner"
+
+          echo "Using objcopy: $OBJCOPY"
+          echo "Using zipalign: $ZIPALIGN"
+          echo "Using apksigner: $APKSIGNER"
+
           APK_DIR="src/android/app/build/outputs/apk/release"
           APK=$(ls $APK_DIR/*.apk | head -1)
           WORK_DIR=$(mktemp -d)
@@ -85,7 +96,7 @@ jobs:
           for so in lib/arm64-v8a/*.so; do
             if [ -f "$so" ]; then
               echo "Stripping .comment from $so"
-              llvm-objcopy --remove-section .comment "$so" || true
+              "$OBJCOPY" --remove-section .comment "$so" || true
             fi
           done
 
@@ -95,19 +106,18 @@ jobs:
 
           # Re-align
           cd "$GITHUB_WORKSPACE"
-          zipalign -f 4 "$APK" "${APK}.aligned"
+          "$ZIPALIGN" -f 4 "$APK" "${APK}.aligned"
           mv "${APK}.aligned" "$APK"
 
           # Re-sign if keystore is available
           if [[ -f "src/android/store.jks" ]]; then
-            apksigner sign \
+            "$APKSIGNER" sign \
               --ks src/android/store.jks \
               --ks-key-alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
               --ks-pass "pass:${{ secrets.ANDROID_KEY_STORE_PASSWORD }}" \
               "$APK"
           else
-            # Sign with debug key
-            apksigner sign \
+            "$APKSIGNER" sign \
               --ks ~/.android/debug.keystore \
               --ks-key-alias androiddebugkey \
               --ks-pass pass:android \
