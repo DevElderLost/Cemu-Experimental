@@ -100,13 +100,14 @@ jobs:
             fi
           done
 
-          # Repackage APK
+          # Repackage APK (store resources.arsc uncompressed for Android R+ requirement)
           rm -f "$GITHUB_WORKSPACE/$APK"
-          zip -r -q "$GITHUB_WORKSPACE/$APK" .
+          zip -r -q -0 "$GITHUB_WORKSPACE/$APK" resources.arsc
+          zip -r -q "$GITHUB_WORKSPACE/$APK" . -x resources.arsc
 
-          # Re-align
+          # Re-align (page-align shared libs for Android 11+)
           cd "$GITHUB_WORKSPACE"
-          "$ZIPALIGN" -f 4 "$APK" "${APK}.aligned"
+          "$ZIPALIGN" -p -f 4 "$APK" "${APK}.aligned"
           mv "${APK}.aligned" "$APK"
 
           # Re-sign if keystore is available
