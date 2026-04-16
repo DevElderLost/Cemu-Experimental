@@ -21,18 +21,6 @@ Games like Twilight Princess HD rely on heap allocations being zero-initialized 
 **Memory barrier instructions** (`PPCRecompilerImlGen.cpp`, `BackendAArch64.cpp`, etc.)
 Added `PPCREC_IML_TYPE_MEMORY_BARRIER` IML instruction type that emits `dmb ish` on AArch64 for SYNC/ISYNC/EIEIO/DCBF PPC instructions. These were silently ignored before, which is safe on x86 (strong memory model) but incorrect on ARM64 (weak memory model). Also added TWI (trap word immediate) as a no-op.
 
-### Vulkan: Direct-Write Buffer Cache for UMA Devices
-
-**Problem:** On the original code path, every buffer cache upload required a `vkCmdCopyBuffer` from a staging buffer, which must happen outside a Vulkan render pass. This caused 500-800 render pass breaks per frame on WWHD, each one forcing the GPU to flush and restart its tile-based rendering pipeline.
-
-**Solution:** On UMA (Unified Memory Architecture) devices like mobile SoCs, GPU and CPU share the same physical memory, so `HOST_VISIBLE+DEVICE_LOCAL` memory has no performance penalty for GPU reads. The buffer cache is now allocated with these flags and persistently mapped, allowing direct `memcpy` writes that bypass staging copies entirely. This eliminates the render pass breaks caused by buffer uploads.
-
-**Cross-device safety:** The `DEVICE_LOCAL+HOST_VISIBLE+HOST_COHERENT` allocation only succeeds on UMA hardware. On discrete GPUs it fails, and the code falls back to the original staging copy path automatically. No behavior change for desktop users.
-
-**Impact:** Render passes dropped from 600+ to ~50 per frame. GPU command overhead dropped from 15-26% to 4-8% of frame time.
-
-*Files: `VulkanRenderer.cpp`, `VulkanRenderer.h`*
-
 ### CPU Core Affinity Pinning (Android)
 
 **Problem:** The Snapdragon 8 Elite has 2 prime cores (4.32GHz) and 6 big cores (3.53GHz). When the OS scheduler places emulation threads on prime cores, they generate significantly more heat with no measurable FPS improvement (the emulation workload doesn't benefit from the extra ~20% clock speed).
