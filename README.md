@@ -13,6 +13,11 @@ For general information about Cemu, see the [official website](https://cemu.info
 
 ## Changes from Upstream
 
+### Android Packaging
+
+**Application ID suffix** (`src/android/app/build.gradle.kts`)
+Changed the Android `applicationId` to `info.cemu.cemu.odin` so this build can be installed alongside SSimco's `info.cemu.cemu` APK without package/signature conflicts during testing and release validation.
+
 ### Crash Fixes
 
 **Heap zero-initialization** (`coreinit_MEM_ExpHeap.cpp`)
