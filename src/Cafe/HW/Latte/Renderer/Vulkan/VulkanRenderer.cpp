@@ -710,8 +710,6 @@ VulkanRenderer::~VulkanRenderer()
 	memoryManager->DeleteBuffer(m_textureReadbackBuffer, m_textureReadbackBufferMemory);
 	memoryManager->DeleteBuffer(m_xfbRingBuffer, m_xfbRingBufferMemory);
 	memoryManager->DeleteBuffer(m_occlusionQueries.bufferQueryResults, m_occlusionQueries.memoryQueryResults);
-	if (m_bufferCacheMappedMemory)
-		vkUnmapMemory(m_logicalDevice, m_bufferCacheMemory);
 	memoryManager->DeleteBuffer(m_bufferCache, m_bufferCacheMemory);
 
 	m_padSwapchainInfo = nullptr;
@@ -3841,9 +3839,8 @@ void VulkanRenderer::bufferCache_init(const sint32 bufferSize)
 	m_importedMemBaseAddress = 0x10000000;
 	size_t hostAllocationSize = 0x40000000ull;
 	// todo - get size of allocation
-	bool configUseHostMemory = true; // enable host memory import to avoid staging buffer copies and render pass breaks
+	bool configUseHostMemory = false; // todo - replace this with a config option
 	m_useHostMemoryForCache = false;
-	cemuLog_log(LogType::Force, "VK_EXT_external_memory_host: {}", m_featureControl.deviceExtensions.external_memory_host ? "supported" : "not supported");
 	if (m_featureControl.deviceExtensions.external_memory_host && configUseHostMemory)
 	{
 		m_useHostMemoryForCache = memoryManager->CreateBufferFromHostMemory(memory_getPointerFromVirtualOffset(m_importedMemBaseAddress), hostAllocationSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 0, m_importedMem, m_importedMemMemory);
@@ -3851,62 +3848,13 @@ void VulkanRenderer::bufferCache_init(const sint32 bufferSize)
 		{
 			cemuLog_log(LogType::Force, "Unable to import host memory to Vulkan buffer. Use default cache system instead");
 		}
-		else
-		{
-			cemuLog_log(LogType::Force, "Host memory imported successfully - buffer cache uploads will bypass staging copies");
-		}
 	}
 	if(!m_useHostMemoryForCache)
-	{
-		// On UMA (unified memory architecture): try host-visible + device-local buffer
-		// to avoid staging copies and render pass breaks. This is safe because on UMA,
-		// DEVICE_LOCAL+HOST_VISIBLE memory has the same GPU read speed as DEVICE_LOCAL-only.
-		// On discrete GPUs, this allocation will typically fail (or use limited BAR space),
-		// so we fall back to the staging copy path which is optimal for discrete GPUs.
-		m_bufferCacheUseDirectWrite = false;
-		m_bufferCacheMappedMemory = nullptr;
-		cemuLog_log(LogType::Force, "Buffer cache: attempting direct-write allocation ({}MB)", bufferSize / (1024 * 1024));
-		// Only try HOST_VISIBLE + HOST_COHERENT + DEVICE_LOCAL (UMA indicator)
-		bool allocOk = memoryManager->CreateBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_bufferCache, m_bufferCacheMemory);
-		if (allocOk)
-		{
-			VkResult mapResult = vkMapMemory(m_logicalDevice, m_bufferCacheMemory, 0, bufferSize, 0, &m_bufferCacheMappedMemory);
-			if (mapResult == VK_SUCCESS)
-			{
-				m_bufferCacheUseDirectWrite = true;
-				cemuLog_log(LogType::Force, "Buffer cache: using direct-write mode (HOST_VISIBLE+DEVICE_LOCAL, {}MB)", bufferSize / (1024 * 1024));
-			}
-			else
-			{
-				cemuLog_log(LogType::Force, "Buffer cache: vkMapMemory failed ({}), falling back to staging copies", (sint32)mapResult);
-				memoryManager->DeleteBuffer(m_bufferCache, m_bufferCacheMemory);
-				m_bufferCache = VK_NULL_HANDLE;
-			}
-		}
-		else
-		{
-			cemuLog_log(LogType::Force, "Buffer cache: HOST_VISIBLE+DEVICE_LOCAL not available, using staging copies");
-		}
-		// Final fallback: device-local with staging copies (original behavior)
-		if (!m_bufferCacheUseDirectWrite && m_bufferCache == VK_NULL_HANDLE)
-		{
-			memoryManager->CreateBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 0, m_bufferCache, m_bufferCacheMemory);
-			cemuLog_log(LogType::Force, "Buffer cache: using staging copy mode (device-local, {}MB)", bufferSize / (1024 * 1024));
-		}
-	}
+		memoryManager->CreateBuffer(bufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 0, m_bufferCache, m_bufferCacheMemory);
 }
 
 void VulkanRenderer::bufferCache_upload(uint8* buffer, sint32 size, uint32 bufferOffset)
 {
-	if (m_bufferCacheUseDirectWrite)
-	{
-		// Direct write to host-visible buffer - no staging copy, no render pass break
-		memcpy((uint8*)m_bufferCacheMappedMemory + bufferOffset, buffer, size);
-		return;
-	}
-
-	// Staging copy path - requires ending render pass for vkCmdCopyBuffer
 	if (m_state.activeRenderpassFBO) performanceMonitor.vk.numRPBreak_texLoad.increment();
 	draw_endRenderPass();
 
@@ -3934,13 +3882,6 @@ void VulkanRenderer::bufferCache_upload(uint8* buffer, sint32 size, uint32 buffe
 void VulkanRenderer::bufferCache_copy(uint32 srcOffset, uint32 dstOffset, uint32 size)
 {
 	cemu_assert_debug(!m_useHostMemoryForCache);
-
-	if (m_bufferCacheUseDirectWrite)
-	{
-		// Direct copy within host-visible buffer - no render pass break needed
-		memmove((uint8*)m_bufferCacheMappedMemory + dstOffset, (uint8*)m_bufferCacheMappedMemory + srcOffset, size);
-		return;
-	}
 
 	if (m_state.activeRenderpassFBO) performanceMonitor.vk.numRPBreak_other.increment();
 	draw_endRenderPass();

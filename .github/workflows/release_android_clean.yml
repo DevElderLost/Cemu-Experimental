@@ -12,6 +12,16 @@ on:
         required: true
         type: string
         default: '4'
+      version_patch:
+        description: Version patch (e.g. 1)
+        required: false
+        type: string
+        default: '0'
+      publish_release:
+        description: Publish a GitHub release after artifact build
+        required: false
+        type: boolean
+        default: false
 
 env:
   VCPKG_ROOT: "${{github.workspace}}/dependencies/vcpkg"
@@ -57,6 +67,7 @@ jobs:
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           EMULATOR_VERSION_MAJOR: ${{ inputs.version_major }}
           EMULATOR_VERSION_MINOR: ${{ inputs.version_minor }}
+          EMULATOR_VERSION_PATCH: ${{ inputs.version_patch }}
         run: |
           export JAVA_HOME=$JAVA_HOME_21_X64
 
@@ -71,6 +82,14 @@ jobs:
           fi
 
           ./gradlew assembleRelease
+
+      - name: Set version dependent vars
+        run: |
+          VERSION="${{ inputs.version_major }}.${{ inputs.version_minor }}"
+          if [[ "${{ inputs.version_patch }}" != "" && "${{ inputs.version_patch }}" != "0" ]]; then
+            VERSION="${VERSION}.${{ inputs.version_patch }}"
+          fi
+          echo "CEMU_VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Strip .comment sections from native libraries
         run: |
@@ -192,14 +211,15 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Cemu-${{ inputs.version_major }}.${{ inputs.version_minor }}-android
+          name: Cemu-${{ env.CEMU_VERSION }}-android
           path: src/android/app/build/outputs/apk/release/*.apk
 
       - name: Create GitHub Release
+        if: ${{ inputs.publish_release }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="${{ inputs.version_major }}.${{ inputs.version_minor }}"
+          VERSION="${{ env.CEMU_VERSION }}"
           APK_DIR="src/android/app/build/outputs/apk/release"
           APK=$(ls $APK_DIR/*.apk | head -1)
           mv "$APK" "$APK_DIR/Cemu-${VERSION}-android.apk"
