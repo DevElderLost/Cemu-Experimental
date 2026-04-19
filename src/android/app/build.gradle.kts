@@ -32,12 +32,41 @@ fun getGitHash(): String? = "git log --format=%h -1".runCommand()?.trim()
 
 val versionMajor: Int? = System.getenv("EMULATOR_VERSION_MAJOR")?.toIntOrNull()
 val versionMinor: Int? = System.getenv("EMULATOR_VERSION_MINOR")?.toIntOrNull()
-versionMajor
+val versionPatch: Int? = System.getenv("EMULATOR_VERSION_PATCH")?.toIntOrNull()
 fun getVersionName(): String {
-    if (versionMajor != null && versionMinor != null)
+    if (versionMajor != null && versionMinor != null) {
+        if (versionPatch != null)
+            return "$versionMajor.$versionMinor.$versionPatch"
         return "$versionMajor.$versionMinor"
+    }
     return getGitHash() ?: "1.0"
 }
+
+fun getVersionCode(): Int {
+    if (versionMajor != null && versionMinor != null) {
+        val patch = versionPatch ?: 0
+        return versionMajor * 10000 + versionMinor * 100 + patch
+    }
+    return 1
+}
+
+fun findWindowsPkgConfExecutable(): String? {
+    if (!System.getProperty("os.name").startsWith("Windows", ignoreCase = true))
+        return null
+    val msys2ToolsDir = file("../../../dependencies/vcpkg/downloads/tools/msys2")
+    if (!msys2ToolsDir.exists())
+        return null
+    return msys2ToolsDir
+        .walkTopDown()
+        .maxDepth(4)
+        .filter { it.isFile && it.name.equals("pkgconf.exe", ignoreCase = true) }
+        .filter { it.invariantSeparatorsPath.contains("/mingw64/bin/") }
+        .sortedByDescending { it.lastModified() }
+        .map { it.invariantSeparatorsPath }
+        .firstOrNull()
+}
+
+val pkgConfigExecutable = findWindowsPkgConfExecutable()
 
 val cemuDataFilesFolder = "../../../bin"
 
@@ -46,11 +75,11 @@ android {
     compileSdk = 36
     ndkVersion = "29.0.14206865"
     defaultConfig {
-        applicationId = "info.cemu.cemu"
+        applicationId = "info.cemu.cemu.odin"
         minSdk = 30
         targetSdk = 35
         versionName = getVersionName()
-        versionCode = 1
+        versionCode = getVersionCode()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -131,13 +160,16 @@ android {
                     "-DUSE_SANITIZERS=OFF"
                 )
                 if (versionMajor != null && versionMinor != null) {
-                    arguments.addAll(
-                        arrayOf(
-                            "-DEMULATOR_VERSION_MAJOR=$versionMajor",
-                            "-DEMULATOR_VERSION_MINOR=$versionMinor"
-                        )
+                    val versionArgs = mutableListOf(
+                        "-DEMULATOR_VERSION_MAJOR=$versionMajor",
+                        "-DEMULATOR_VERSION_MINOR=$versionMinor"
                     )
+                    if (versionPatch != null)
+                        versionArgs.add("-DEMULATOR_VERSION_PATCH=$versionPatch")
+                    arguments.addAll(versionArgs)
                 }
+                if (pkgConfigExecutable != null)
+                    arguments.add("-DPKG_CONFIG_EXECUTABLE=$pkgConfigExecutable")
                 // abiFilters("arm64-v8a", "x86_64")
                 abiFilters("arm64-v8a")
             }

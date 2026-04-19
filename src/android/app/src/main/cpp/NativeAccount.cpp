@@ -1,4 +1,5 @@
 #include <util/helpers/SystemException.h>
+#include "Cafe/Account/Account.h"
 #include "WindowSystem.h"
 #include "JNIUtils.h"
 #include "AndroidAudio.h"

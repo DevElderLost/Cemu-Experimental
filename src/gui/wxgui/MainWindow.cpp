@@ -14,7 +14,9 @@
 #include "AudioDebuggerWindow.h"
 #include "wxgui/canvas/OpenGLCanvas.h"
 #include "wxgui/canvas/VulkanCanvas.h"
+#if ENABLE_METAL
 #include "wxgui/canvas/MetalCanvas.h"
+#endif
 #include "Cafe/OS/libs/nfc/nfc.h"
 #include "Cafe/OS/libs/swkbd/swkbd.h"
 #include "wxgui/debugger/DebuggerWindow2.h"
@@ -2164,9 +2166,9 @@ void MainWindow::RecreateMenu()
 	}
 	else
 	{
-		// add 'Stop emulation' menu entry to file menu
 #ifdef CEMU_DEBUG_ASSERT
-		m_fileMenu->Append(MAINFRAME_MENU_ID_FILE_END_EMULATION, _("Stop emulation"));
+		m_fileMenu->Append(MAINFRAME_MENU_ID_FILE_END_EMULATION, _("Close game"));
+		m_fileMenuSeparator1 = m_fileMenu->AppendSeparator();
 #endif
 	}
 
