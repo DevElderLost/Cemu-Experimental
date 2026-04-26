@@ -148,7 +148,7 @@ android {
                     "-DENABLE_BLUEZ=OFF",
                     "-DBUNDLE_SPEEX=ON",
                     "-DENABLE_DISCORD_RPC=OFF",
-                    "-DENABLE_NSYSHID_LIBUSB=OFF",
+                    "-DENABLE_LIBUSB=OFF",
                     "-DENABLE_WAYLAND=OFF",
                     "-DENABLE_HIDAPI=OFF",
                     "-DUSE_SANITIZERS=OFF"

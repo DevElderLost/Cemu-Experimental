@@ -49,7 +49,6 @@
       "name": "fmt",
       "version>=": "12.1.0"
     },
-    "hidapi",
     "libpng",
     "glm",
     {
@@ -82,7 +81,10 @@
         "zip"
       ]
     },
-    "libusb"
+    {
+      "name": "libusb",
+      "platform": "!android"
+    }
   ],
   "overrides": [
     {
