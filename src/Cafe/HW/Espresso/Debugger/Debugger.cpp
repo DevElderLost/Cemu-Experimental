@@ -507,8 +507,7 @@ void debugger_removePatch(uint32 address)
 
 void debugger_stepInto(PPCInterpreter_t* hCPU, bool updateDebuggerWindow = true)
 {
-	bool isRecEnabled = ppcRecompilerEnabled;
-	ppcRecompilerEnabled = false;
+	PPCRecompiler_Disable();
 	uint32 initialIP = debuggerState.debugSession.instructionPointer;
 	debugger_updateExecutionBreakpoint(initialIP, true);
 	PPCInterpreterSlim_executeInstruction(hCPU);
@@ -516,26 +515,26 @@ void debugger_stepInto(PPCInterpreter_t* hCPU, bool updateDebuggerWindow = true)
 	debuggerState.debugSession.instructionPointer = hCPU->instructionPointer;
 	if(updateDebuggerWindow)
 		g_debuggerDispatcher.MoveIP();
-	ppcRecompilerEnabled = isRecEnabled;
+	PPCRecompiler_Enable();
 }
 
 bool debugger_stepOver(PPCInterpreter_t* hCPU)
 {
-	bool isRecEnabled = ppcRecompilerEnabled;
-	ppcRecompilerEnabled = false;
+	PPCRecompiler_Disable();
 	// disassemble current instruction
 	PPCDisassembledInstruction disasmInstr = { 0 };
 	uint32 initialIP = debuggerState.debugSession.instructionPointer;
 	debugger_updateExecutionBreakpoint(initialIP, true);
 	ppcAssembler_disassemble(initialIP, memory_readU32(initialIP), &disasmInstr);
 	if (disasmInstr.ppcAsmCode != PPCASM_OP_BL &&
+		disasmInstr.ppcAsmCode != PPCASM_OP_BLA &&
 		disasmInstr.ppcAsmCode != PPCASM_OP_BCTRL)
 	{
 		// nothing to skip, use step-into
 		debugger_stepInto(hCPU);
 		debugger_updateExecutionBreakpoint(initialIP);
 		g_debuggerDispatcher.MoveIP();
-		ppcRecompilerEnabled = isRecEnabled;
+		PPCRecompiler_Enable();
 		return false;
 	}
 	// create one-shot breakpoint at next instruction
@@ -546,7 +545,7 @@ bool debugger_stepOver(PPCInterpreter_t* hCPU)
 	// restore breakpoints
 	debugger_updateExecutionBreakpoint(initialIP);
 	// run
-	ppcRecompilerEnabled = isRecEnabled;
+	PPCRecompiler_Enable();
 	return true;
 }
 
