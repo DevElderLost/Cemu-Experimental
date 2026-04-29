@@ -13,7 +13,6 @@
 #include "Cafe/HW/Latte/Renderer/Renderer.h"
 #include "Cafe/HW/Latte/Core/LatteTexture.h"
 #include "util/helpers/helpers.h"
-#include "Common/cpu_affinity.h"
 
 #include <imgui.h>
 #include "config/ActiveSettings.h"
@@ -116,8 +115,6 @@ void LatteThread_HandleOSScreen()
 int Latte_ThreadEntry()
 {
 	SetThreadName("LatteThread");
-	// Pin GPU thread to big cores (exclude prime cores for thermal optimization)
-	CpuAffinity::PinCurrentThreadToBigCoresOnly();
 	sint32 w,h;
 	WindowSystem::GetWindowPhysSize(w,h);
 

@@ -62,8 +62,6 @@ if(ANDROID)
     android/FileStream_saf.h
     android/FilesystemAndroid.cpp
     android/FilesystemAndroid.h
-    cpu_affinity.cpp
-    cpu_affinity.h
   )
 endif()
 
