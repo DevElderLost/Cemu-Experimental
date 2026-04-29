@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package info.cemu.cemu.common.ui.components
 
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,7 +23,6 @@ import androidx.compose.ui.unit.dp
 import info.cemu.cemu.R
 import info.cemu.cemu.common.ui.localization.tr
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun <T> SelectField(
     label: String,
@@ -34,7 +35,7 @@ fun <T> SelectField(
 
     ExposedDropdownMenuBox(
         expanded = expanded,
-        onExpandedChange = { expanded = !expanded },
+        onExpandedChange = { expanded = it },
         modifier = Modifier
             .fillMaxWidth()
             .padding(8.dp)

@@ -6,7 +6,6 @@ import javax.xml.bind.DatatypeConverter
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kotlinx.gettext)
@@ -89,7 +88,7 @@ android {
 
     sourceSets.getByName("main") {
         assets {
-            srcDir(cemuDataFilesFolder)
+            directories.add(cemuDataFilesFolder)
         }
     }
 
@@ -126,11 +125,6 @@ android {
                 signingConfigs.getByName("debug")
             }
         }
-    }
-
-    compileOptions {
-        sourceCompatibility(JavaVersion.VERSION_21)
-        targetCompatibility(JavaVersion.VERSION_21)
     }
 
     externalNativeBuild {
@@ -179,10 +173,6 @@ android {
     buildFeatures {
         buildConfig = true
         compose = true
-    }
-
-    kotlinOptions {
-        jvmTarget = "21"
     }
 }
 
@@ -260,8 +250,7 @@ dependencies {
     androidTestImplementation(libs.androidx.ui.test.junit4)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
-    implementation(libs.okhttp)
-    implementation(libs.okhttp.coroutines)
+    implementation(libs.ktor.client.okhttp)
     implementation(libs.androidx.appcompat)
     implementation(libs.google.android.material)
     implementation(libs.androidx.navigation.compose)

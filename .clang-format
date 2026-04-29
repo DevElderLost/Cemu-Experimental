@@ -5,7 +5,7 @@ AlignEscapedNewlinesLeft: false
 AlignOperands: true
 AlignTrailingComments: true
 AllowShortBlocksOnASingleLine: Empty
-AllowShortCaseLabelsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: true
 AllowShortEnumsOnASingleLine: true
 AllowShortFunctionsOnASingleLine: Empty
 AllowShortIfStatementsOnASingleLine: false
@@ -64,3 +64,4 @@ SpacesInSquareBrackets: false
 Standard: Latest
 TabWidth: 4
 UseTab: Always
+LineEnding: LF

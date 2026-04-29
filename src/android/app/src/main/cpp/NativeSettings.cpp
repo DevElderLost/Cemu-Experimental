@@ -175,7 +175,7 @@ extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeSettings_addGamesPath(JNIEnv* env, [[maybe_unused]] jclass clazz, jstring uri)
 {
 	auto& gamePaths = GetConfig().game_paths;
-	auto gamePath = JNIUtils::toString(env, uri);
+	auto gamePath = JNIUtils::FromJString(env, uri);
 	if (std::any_of(gamePaths.begin(), gamePaths.end(), [&](const auto& path) { return path == gamePath; }))
 		return;
 	gamePaths.push_back(gamePath);
@@ -184,15 +184,15 @@ Java_info_cemu_cemu_nativeinterface_NativeSettings_addGamesPath(JNIEnv* env, [[m
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeSettings_removeGamesPath(JNIEnv* env, [[maybe_unused]] jclass clazz, jstring uri)
 {
-	auto gamePath = JNIUtils::toString(env, uri);
+	auto gamePath = JNIUtils::FromJString(env, uri);
 	auto& gamePaths = GetConfig().game_paths;
 	std::erase_if(gamePaths, [&](const auto& path) { return path == gamePath; });
 }
 
-extern "C" [[maybe_unused]] JNIEXPORT jobject JNICALL
+extern "C" [[maybe_unused]] JNIEXPORT jobjectArray JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeSettings_getGamesPaths(JNIEnv* env, [[maybe_unused]] jclass clazz)
 {
-	return JNIUtils::createJavaStringArrayList(env, GetConfig().game_paths);
+	return JNIUtils::CreateStringObjectArray(env, GetConfig().game_paths);
 }
 
 extern "C" [[maybe_unused]] JNIEXPORT jboolean JNICALL
@@ -344,13 +344,13 @@ Java_info_cemu_cemu_nativeinterface_NativeSettings_getCustomDriverPath(JNIEnv* e
 	std::string customDriverPath = GetConfig().custom_driver_path;
 	if (customDriverPath.empty())
 		return nullptr;
-	return JNIUtils::toJString(env, customDriverPath);
+	return JNIUtils::ToJString(env, customDriverPath);
 }
 
 extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeSettings_setCustomDriverPath(JNIEnv* env, [[maybe_unused]] jclass clazz, jstring custom_driver_path)
 {
-	GetConfig().custom_driver_path = JNIUtils::toString(env, custom_driver_path);
+	GetConfig().custom_driver_path = JNIUtils::FromJString(env, custom_driver_path);
 }
 
 extern "C" [[maybe_unused]] JNIEXPORT jint JNICALL
@@ -375,6 +375,44 @@ extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
 Java_info_cemu_cemu_nativeinterface_NativeSettings_setAccountPersistentId([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz, jint persistent_id)
 {
 	GetConfig().account.m_persistent_id = persistent_id;
+}
+
+extern "C" [[maybe_unused]] JNIEXPORT jboolean JNICALL
+Java_info_cemu_cemu_nativeinterface_NativeSettings_isEmulateSkylanderPortalEnabled([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz)
+{
+	return GetConfig().emulated_usb_devices.emulate_skylander_portal;
+}
+
+extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
+Java_info_cemu_cemu_nativeinterface_NativeSettings_setEmulateSkylanderPortalEnabled([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz, jboolean enabled)
+{
+	GetConfig().emulated_usb_devices.emulate_skylander_portal = enabled;
+}
+
+
+extern "C" [[maybe_unused]] JNIEXPORT jboolean JNICALL
+Java_info_cemu_cemu_nativeinterface_NativeSettings_isEmulateInfinityBaseEnabled([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz)
+{
+	return GetConfig().emulated_usb_devices.emulate_infinity_base;
+}
+
+extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
+Java_info_cemu_cemu_nativeinterface_NativeSettings_setEmulateInfinityBaseEnabled([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz, jboolean enabled)
+{
+	GetConfig().emulated_usb_devices.emulate_infinity_base = enabled;
+}
+
+
+extern "C" [[maybe_unused]] JNIEXPORT jboolean JNICALL
+Java_info_cemu_cemu_nativeinterface_NativeSettings_isEmulateDimensionsToypadEnabled([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz)
+{
+	return GetConfig().emulated_usb_devices.emulate_dimensions_toypad;
+}
+
+extern "C" [[maybe_unused]] JNIEXPORT void JNICALL
+Java_info_cemu_cemu_nativeinterface_NativeSettings_setEmulateDimensionsToypadEnabled([[maybe_unused]] JNIEnv* env, [[maybe_unused]] jclass clazz, jboolean enabled)
+{
+	GetConfig().emulated_usb_devices.emulate_dimensions_toypad = enabled;
 }
 
 extern "C" [[maybe_unused]] JNIEXPORT jboolean JNICALL
