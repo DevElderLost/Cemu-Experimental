@@ -80,26 +80,18 @@ private object SettingsRoutes {
 fun NavGraphBuilder.settingsNavigation(navController: NavHostController) {
     navigation<SettingsRoute>(startDestination = SettingsRoutes.SettingsHomeScreenRoute) {
         composable<SettingsRoutes.SettingsHomeScreenRoute> {
-            SettingsHomeScreen(
-                navigateBack = { navController.popBackStack() },
-                goToGeneralSettings = { navController.navigate(SettingsRoutes.GeneralSettings) },
-                goToInputSettings = { navController.navigate(SettingsRoutes.InputSettingsRoute) },
-                goToGraphicsSettings = { navController.navigate(SettingsRoutes.GraphicsSettingsScreenRoute) },
-                goToAudioSettings = { navController.navigate(SettingsRoutes.AudioSettingsScreenRoute) },
-                goToOverlaySettings = { navController.navigate(SettingsRoutes.OverlaySettingsScreenRoute) },
-                goToAccountSettings = { navController.navigate(SettingsRoutes.AccountSettingsScreenRoute) },
-                goToEmulatedUSBDevicesSettings = { navController.navigate(SettingsRoutes.EmulatedUSBDevicesSettingsScreenRoute) },
-                actions = SettingsHomeScreenActions(
-                    goToGeneralSettings = { navController.navigate(SettingsRoutes.GeneralSettings) },
-                    goToInputSettings = { navController.navigate(SettingsRoutes.InputSettingsRoute) },
-                    goToGraphicsSettings = { navController.navigate(SettingsRoutes.GraphicsSettingsScreenRoute) },
-                    goToAudioSettings = { navController.navigate(SettingsRoutes.AudioSettingsScreenRoute) },
-                    goToOverlaySettings = { navController.navigate(SettingsRoutes.OverlaySettingsScreenRoute) },
-                    goToAccountSettings = { navController.navigate(SettingsRoutes.AccountSettingsScreenRoute) },
-                    goToUserDataSettings = { navController.navigate(SettingsRoutes.UserDataSettingsScreenRoute) }
-                )
-            )
-        }
+    SettingsHomeScreen(
+        navigateBack = { navController.popBackStack() },
+        goToGeneralSettings = { navController.navigate(SettingsRoutes.GeneralSettings) },
+        goToInputSettings = { navController.navigate(SettingsRoutes.InputSettingsRoute) },
+        goToGraphicsSettings = { navController.navigate(SettingsRoutes.GraphicsSettingsScreenRoute) },
+        goToAudioSettings = { navController.navigate(SettingsRoutes.AudioSettingsScreenRoute) },
+        goToOverlaySettings = { navController.navigate(SettingsRoutes.OverlaySettingsScreenRoute) },
+        goToAccountSettings = { navController.navigate(SettingsRoutes.AccountSettingsScreenRoute) },
+        goToEmulatedUSBDevicesSettings = { navController.navigate(SettingsRoutes.EmulatedUSBDevicesSettingsScreenRoute) },
+        goToUserDataSettings = { navController.navigate(SettingsRoutes.UserDataSettingsScreenRoute) }
+    )
+}
         composable<SettingsRoutes.AudioSettingsScreenRoute> {
             AudioSettingsScreen(
                 navigateBack = { navController.popBackStack() },
