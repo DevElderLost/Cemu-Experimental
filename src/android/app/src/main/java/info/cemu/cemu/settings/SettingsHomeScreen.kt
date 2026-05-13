@@ -6,6 +6,16 @@ import info.cemu.cemu.common.ui.components.Button
 import info.cemu.cemu.common.ui.components.ScreenContent
 import info.cemu.cemu.common.ui.localization.tr
 
+data class SettingsHomeScreenActions(
+    val goToGeneralSettings: () -> Unit,
+    val goToInputSettings: () -> Unit,
+    val goToGraphicsSettings: () -> Unit,
+    val goToAudioSettings: () -> Unit,
+    val goToAccountSettings: () -> Unit,
+    val goToOverlaySettings: () -> Unit,
+    val goToUserDataSettings: () -> Unit,
+)
+
 @Composable
 fun SettingsHomeScreen(
     goToGeneralSettings: () -> Unit,
@@ -48,6 +58,10 @@ fun SettingsHomeScreen(
         Button(
             label = tr("Account settings"),
             onClick = dropUnlessResumed(block = goToAccountSettings)
+        )
+        Button(
+            label = tr("User data"),
+            onClick = dropUnlessResumed(block = actions.goToUserDataSettings)
         )
     }
 }

@@ -18,6 +18,7 @@ import info.cemu.cemu.settings.input.hotkeys.HotkeySettingsScreen
 import info.cemu.cemu.settings.input.InputSettingsScreen
 import info.cemu.cemu.settings.inputoverlay.InputOverlaySettingsScreen
 import info.cemu.cemu.settings.overlay.OverlaySettingsScreen
+import info.cemu.cemu.settings.userdata.UserDataSettingsScreen
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -71,6 +72,9 @@ private object SettingsRoutes {
 
     @Serializable
     object AccountSettingsScreenRoute
+
+    @Serializable
+    object UserDataSettingsScreenRoute
 }
 
 fun NavGraphBuilder.settingsNavigation(navController: NavHostController) {
@@ -85,6 +89,15 @@ fun NavGraphBuilder.settingsNavigation(navController: NavHostController) {
                 goToOverlaySettings = { navController.navigate(SettingsRoutes.OverlaySettingsScreenRoute) },
                 goToAccountSettings = { navController.navigate(SettingsRoutes.AccountSettingsScreenRoute) },
                 goToEmulatedUSBDevicesSettings = { navController.navigate(SettingsRoutes.EmulatedUSBDevicesSettingsScreenRoute) },
+                actions = SettingsHomeScreenActions(
+                    goToGeneralSettings = { navController.navigate(SettingsRoutes.GeneralSettings) },
+                    goToInputSettings = { navController.navigate(SettingsRoutes.InputSettingsRoute) },
+                    goToGraphicsSettings = { navController.navigate(SettingsRoutes.GraphicsSettingsScreenRoute) },
+                    goToAudioSettings = { navController.navigate(SettingsRoutes.AudioSettingsScreenRoute) },
+                    goToOverlaySettings = { navController.navigate(SettingsRoutes.OverlaySettingsScreenRoute) },
+                    goToAccountSettings = { navController.navigate(SettingsRoutes.AccountSettingsScreenRoute) },
+                    goToUserDataSettings = { navController.navigate(SettingsRoutes.UserDataSettingsScreenRoute) }
+                )
             )
         }
         composable<SettingsRoutes.AudioSettingsScreenRoute> {
@@ -181,6 +194,12 @@ fun NavGraphBuilder.settingsNavigation(navController: NavHostController) {
 
         composable<SettingsRoutes.AccountSettingsScreenRoute> {
             AccountSettingsScreen(
+                navigateBack = { navController.popBackStack() },
+            )
+        }
+
+        composable<SettingsRoutes.UserDataSettingsScreenRoute> {
+            UserDataSettingsScreen(
                 navigateBack = { navController.popBackStack() },
             )
         }
