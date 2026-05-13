@@ -6,6 +6,8 @@ import info.cemu.cemu.common.ui.components.Button
 import info.cemu.cemu.common.ui.components.ScreenContent
 import info.cemu.cemu.common.ui.localization.tr
 
+// Data class ini masih bisa dipertahankan jika akan dipakai di tempat lain,
+// tapi saat ini lebih bersih menggunakan parameter individual.
 data class SettingsHomeScreenActions(
     val goToGeneralSettings: () -> Unit,
     val goToInputSettings: () -> Unit,
@@ -25,6 +27,7 @@ fun SettingsHomeScreen(
     goToAudioSettings: () -> Unit,
     goToAccountSettings: () -> Unit,
     goToOverlaySettings: () -> Unit,
+    goToUserDataSettings: () -> Unit,   // ← Tambahkan ini
     navigateBack: () -> Unit
 ) {
     ScreenContent(
@@ -61,7 +64,7 @@ fun SettingsHomeScreen(
         )
         Button(
             label = tr("User data"),
-            onClick = dropUnlessResumed(block = actions.goToUserDataSettings)
+            onClick = dropUnlessResumed(block = goToUserDataSettings)   // ← Perbaikan di sini
         )
     }
 }
