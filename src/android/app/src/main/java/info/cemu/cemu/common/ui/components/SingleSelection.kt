@@ -37,9 +37,9 @@ fun SingleSelection(
     label: String,
     choice: String,
     choices: Collection<String>,
+    modifier: Modifier = Modifier,
     isChoiceEnabled: (String) -> Boolean = { true },
     enabled: Boolean = true,
-    modifier: Modifier = Modifier,
     onChoiceChanged: (String) -> Unit,
 ) {
     SingleSelection(
@@ -204,7 +204,7 @@ private fun <T> SelectDialog(
 }
 
 @Composable
-fun Choice(label: String, selected: Boolean, isEnabled: Boolean, onClick: () -> Unit) {
+private fun Choice(label: String, selected: Boolean, isEnabled: Boolean, onClick: () -> Unit) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         modifier = Modifier

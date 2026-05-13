@@ -14,8 +14,6 @@
 #include "util/Fiber/Fiber.h"
 
 #include "util/helpers/helpers.h"
-#include "Common/cpu_affinity.h"
-
 #include <thread>
 
 #ifdef __arm64__
@@ -1436,9 +1434,6 @@ namespace coreinit
 	{
 		SetThreadName(fmt::format("OSSched[core={}]", (uintptr_t)_assignedCoreIndex).c_str());
 		t_assignedCoreIndex = (sint32)(uintptr_t)_assignedCoreIndex;
-
-		// Pin PPC emulation threads to big cores (exclude prime cores for thermal optimization)
-		CpuAffinity::PinCurrentThreadToBigCoresOnly();
 
 		enableFlushDenormalsToZero();
 

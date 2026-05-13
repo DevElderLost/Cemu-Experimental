@@ -19,10 +19,6 @@ add_library(CemuInput
 	api/Keyboard/KeyboardControllerProvider.cpp
 	api/Keyboard/KeyboardController.cpp
 	api/Keyboard/KeyboardController.h
-	api/GameCube/GameCubeController.cpp
-	api/GameCube/GameCubeControllerProvider.h
-	api/GameCube/GameCubeControllerProvider.cpp
-	api/GameCube/GameCubeController.h
 	emulated/ProController.cpp
 	emulated/EmulatedController.h
 	emulated/EmulatedController.cpp
@@ -40,6 +36,15 @@ add_library(CemuInput
 set_property(TARGET CemuInput PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 cemu_use_precompiled_header(CemuInput)
+
+if (ENABLE_LIBUSB)
+	target_sources(CemuInput PRIVATE
+		api/GameCube/GameCubeController.cpp
+		api/GameCube/GameCubeControllerProvider.h
+		api/GameCube/GameCubeControllerProvider.cpp
+		api/GameCube/GameCubeController.h
+	)
+endif()
 
 if(WIN32)
 	# XInput
@@ -85,10 +90,16 @@ endif ()
 
 if(ANDROID)
 	target_sources(CemuInput PRIVATE
-		api/Android/AndroidControllerProvider.cpp
-		api/Android/AndroidControllerProvider.h
 		api/Android/AndroidController.cpp
 		api/Android/AndroidController.h
+		api/Android/AndroidControllerProvider.cpp
+		api/Android/AndroidControllerProvider.h
+		api/Android/ControllerManager.cpp
+		api/Android/ControllerManager.h
+		api/Device/DeviceController.cpp
+		api/Device/DeviceController.h
+		api/Device/DeviceControllerProvider.cpp
+		api/Device/DeviceControllerProvider.h
 	)
 endif()
 

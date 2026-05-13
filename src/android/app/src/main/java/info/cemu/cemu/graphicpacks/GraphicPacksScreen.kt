@@ -38,7 +38,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -56,8 +55,8 @@ import info.cemu.cemu.common.ui.components.DefaultAppBarTitle
 import info.cemu.cemu.common.ui.components.ScreenContentLazy
 import info.cemu.cemu.common.ui.components.SearchToolbarInput
 import info.cemu.cemu.common.ui.components.SingleSelection
+import info.cemu.cemu.common.ui.extensions.showMessage
 import info.cemu.cemu.common.ui.localization.tr
-import kotlinx.coroutines.launch
 
 @Composable
 fun GraphicPacksScreen(
@@ -68,28 +67,19 @@ fun GraphicPacksScreen(
     val query by graphicPacksViewModel.filterText.collectAsState()
     val installedOnly by graphicPacksViewModel.installedOnly.collectAsState()
     var showGraphicPackSearch by rememberSaveable { mutableStateOf(false) }
+    val isDownloading by graphicPacksViewModel.isDownloading.collectAsState()
     val downloadStatus by graphicPacksViewModel.downloadStatus.collectAsState()
-    val snackbarScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    var downloadDialogText by rememberSaveable { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val currentNodeState = graphicPacksViewModel.currentNode.collectAsState()
     val currentNode = currentNodeState.value
     val graphicPackDataState = graphicPacksViewModel.currentDataGraphicPack.collectAsState()
     val graphicPackData = graphicPackDataState.value
 
-    downloadStatus?.let { status ->
-        downloadDialogText = downloadStatusToDialogTextString(status)
-        LaunchedEffect(status) {
-            graphicPacksViewModel.downloadStatusRead()
-
-            val downloadNotificationText =
-                downloadStatusToNotificationString(status) ?: return@LaunchedEffect
-
-            snackbarScope.launch {
-                snackbarHostState.currentSnackbarData?.dismiss()
-                snackbarHostState.showSnackbar(downloadNotificationText)
-            }
+    LaunchedEffect(Unit) {
+        graphicPacksViewModel.events.collect {
+            val notificationMessage = downloadEventToNotificationString(it) ?: return@collect
+            snackbarHostState.showMessage(this@LaunchedEffect, notificationMessage)
         }
     }
 
@@ -163,35 +153,37 @@ fun GraphicPacksScreen(
 
         if (graphicPackData != null) {
             graphicPackDataNodeItem(
-                graphicPacksViewModel = graphicPacksViewModel,
-                graphicPackData = graphicPackData
+                graphicPackData = graphicPackData,
+                onSetCurrentGraphicPackActive = graphicPacksViewModel::setCurrentGraphicPackActive,
+                onSetCurrentGraphicPackActivePreset = graphicPacksViewModel::setCurrentGraphicPackActivePreset
             )
         }
 
     }
-    if (downloadDialogText != null) {
+
+    if (isDownloading) {
         GraphicPacksDownloadDialog(
             onCancelRequest = {
                 graphicPacksViewModel.cancelDownload()
             },
-            text = downloadDialogText!!,
+            text = downloadStatusToDialogTextString(downloadStatus),
         )
     }
 }
 
-private fun downloadStatusToDialogTextString(downloadStatus: GraphicPacksDownloadStatus?): String? =
+private fun downloadStatusToDialogTextString(downloadStatus: GraphicPacksDownloadStatus?): String =
     when (downloadStatus) {
         GraphicPacksDownloadStatus.CHECKING_VERSION -> tr("Checking version...")
         GraphicPacksDownloadStatus.DOWNLOADING -> tr("Downloading graphic packs...")
         GraphicPacksDownloadStatus.EXTRACTING -> tr("Extracting...")
-        else -> null
+        else -> tr("Processing...")
     }
 
-private fun downloadStatusToNotificationString(downloadStatus: GraphicPacksDownloadStatus?): String? =
-    when (downloadStatus) {
-        GraphicPacksDownloadStatus.ERROR -> tr("Failed to download graphic packs")
-        GraphicPacksDownloadStatus.FINISHED_DOWNLOADING -> tr("Downloaded latest graphic packs")
-        GraphicPacksDownloadStatus.NO_UPDATES_AVAILABLE -> tr("No updates available.")
+private fun downloadEventToNotificationString(event: GraphicPacksEvent?): String? =
+    when (event) {
+        GraphicPacksEvent.DOWNLOAD_FINISHED -> tr("Downloaded latest graphic packs")
+        GraphicPacksEvent.DOWNLOAD_ERROR -> tr("Failed to download graphic packs")
+        GraphicPacksEvent.NO_UPDATES_AVAILABLE -> tr("No updates available.")
         else -> null
     }
 
@@ -315,7 +307,8 @@ private fun LazyListScope.graphicPackDataSearchItems(
 }
 
 private fun LazyListScope.graphicPackDataNodeItem(
-    graphicPacksViewModel: GraphicPacksViewModel,
+    onSetCurrentGraphicPackActive: (Boolean) -> Unit,
+    onSetCurrentGraphicPackActivePreset: (Int, String) -> Unit,
     graphicPackData: GraphicPackData
 ) {
     item {
@@ -327,7 +320,7 @@ private fun LazyListScope.graphicPackDataNodeItem(
             Switch(
                 modifier = Modifier.padding(horizontal = 8.dp),
                 checked = graphicPackData.active,
-                onCheckedChange = graphicPacksViewModel::setCurrentGraphicPackActive,
+                onCheckedChange = onSetCurrentGraphicPackActive,
             )
         }
     }
@@ -344,10 +337,7 @@ private fun LazyListScope.graphicPackDataNodeItem(
             choices = it.choices,
             choice = it.activeChoice,
             onChoiceChanged = { activePreset ->
-                graphicPacksViewModel.setCurrentGraphicPackActivePreset(
-                    it.index,
-                    activePreset
-                )
+                onSetCurrentGraphicPackActivePreset(it.index, activePreset)
             }
         )
     }

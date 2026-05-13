@@ -1,6 +1,6 @@
 #include "FiberFContext.h"
 
-thread_local Fiber* sCurrentFiber{};
+thread_local Fiber* sCurrentFiber = nullptr;
 
 using namespace boost::context::detail;
 

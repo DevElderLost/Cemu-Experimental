@@ -11,7 +11,7 @@ object NativeSettings {
     external fun removeGamesPath(uri: String?)
 
     @JvmStatic
-    external fun getGamesPaths(): ArrayList<String>
+    external fun getGamesPaths(): Array<String>
 
     @JvmStatic
     external fun getAsyncShaderCompile(): Boolean
@@ -238,9 +238,26 @@ object NativeSettings {
     @JvmStatic
     external fun getAccountPersistentId(): Int
 
-
     @JvmStatic
     external fun setAccountPersistentId(persistentId: Int)
+
+    @JvmStatic
+    external fun isEmulateSkylanderPortalEnabled(): Boolean
+
+    @JvmStatic
+    external fun setEmulateSkylanderPortalEnabled(enabled: Boolean)
+
+    @JvmStatic
+    external fun isEmulateInfinityBaseEnabled(): Boolean
+
+    @JvmStatic
+    external fun setEmulateInfinityBaseEnabled(enabled: Boolean)
+
+    @JvmStatic
+    external fun isEmulateDimensionsToypadEnabled(): Boolean
+
+    @JvmStatic
+    external fun setEmulateDimensionsToypadEnabled(enabled: Boolean)
 
     @JvmStatic
     external fun hasCustomNetworkConfiguration(): Boolean

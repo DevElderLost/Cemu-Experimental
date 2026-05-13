@@ -1,12 +1,13 @@
 add_library(CemuAndroid SHARED
-        AndroidAudio.cpp
-        AndroidEmulatedController.cpp
+        AndroidFilesystemCallbacks.cpp
+        AndroidInputHelpers.cpp
         CompressTitleCallbacks.cpp
         GameTitleLoader.cpp
         Image.cpp
         JNIUtils.cpp
-        NativeActiveSettings.cpp
         NativeAccount.cpp
+        NativeActiveSettings.cpp
+        NativeEmulatedUSBDevices.cpp
         NativeEmulation.cpp
         NativeGameTitles.cpp
         NativeGraphicPacks.cpp

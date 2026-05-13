@@ -5,14 +5,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import info.cemu.cemu.nativeinterface.NativeGameTitles
 import info.cemu.cemu.nativeinterface.NativeGraphicPacks
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -31,11 +33,10 @@ data class Preset(
                     index = index,
                     category = preset.category,
                     activeChoice = preset.activePreset,
-                    choices = preset.presets,
+                    choices = preset.presets.toList(),
                 )
             }
         }
-
     }
 }
 
@@ -55,7 +56,13 @@ private fun MutableList<GraphicPackDataNode>.fillWithDataNodes(graphicPackSectio
     return this
 }
 
-class GraphicPacksViewModel : ViewModel() {
+enum class GraphicPacksEvent {
+    DOWNLOAD_FINISHED, DOWNLOAD_ERROR, NO_UPDATES_AVAILABLE,
+}
+
+class GraphicPacksViewModel(
+    private val graphicPacksDownloader: GraphicPacksDownloader = GraphicPacksDownloader()
+) : ViewModel() {
     private var rootNode = GraphicPackSectionNode()
 
     val installedTitleIds = NativeGameTitles.getInstalledGamesTitleIds()
@@ -68,12 +75,9 @@ class GraphicPacksViewModel : ViewModel() {
 
     private val path = MutableStateFlow(listOf<GraphicPackNode>(rootNode))
 
-    val currentNode = path.map { it.last() }
-        .stateIn(
-            viewModelScope,
-            SharingStarted.WhileSubscribed(5000),
-            rootNode
-        )
+    val currentNode = path.map { it.last() }.stateIn(
+        viewModelScope, SharingStarted.WhileSubscribed(5000), rootNode
+    )
 
     private var currentNativeGraphicPack: NativeGraphicPacks.GraphicPack? = null
     private val _currentDataGraphicPack = MutableStateFlow<GraphicPackData?>(null)
@@ -111,7 +115,7 @@ class GraphicPacksViewModel : ViewModel() {
 
         nativeGraphicPack.reloadPresets()
 
-        if (oldPresets == nativeGraphicPack.presets) {
+        if (oldPresets.contentEquals(nativeGraphicPack.presets)) {
             return
         }
 
@@ -180,28 +184,50 @@ class GraphicPacksViewModel : ViewModel() {
     }
 
     private val _downloadStatus = MutableStateFlow<GraphicPacksDownloadStatus?>(null)
-    private suspend fun updateDownloadStatus(status: GraphicPacksDownloadStatus?) {
-        _downloadStatus.first { it == null }
-        _downloadStatus.value = status
-    }
-
     val downloadStatus = _downloadStatus.asStateFlow()
 
+    val isDownloading: StateFlow<Boolean> =
+        _downloadStatus.map { it == GraphicPacksDownloadStatus.DOWNLOADING || it == GraphicPacksDownloadStatus.EXTRACTING || it == GraphicPacksDownloadStatus.CHECKING_VERSION }
+            .stateIn(viewModelScope, SharingStarted.Lazily, false)
+
+    val events = _downloadStatus.map { status ->
+        when (status) {
+            GraphicPacksDownloadStatus.FINISHED_DOWNLOADING -> GraphicPacksEvent.DOWNLOAD_FINISHED
+            GraphicPacksDownloadStatus.ERROR -> GraphicPacksEvent.DOWNLOAD_ERROR
+            GraphicPacksDownloadStatus.NO_UPDATES_AVAILABLE -> GraphicPacksEvent.NO_UPDATES_AVAILABLE
+            else -> null
+        }
+    }.distinctUntilChanged()
+
     private var downloadJob: Job? = null
+
     fun downloadNewUpdate(context: Context) {
-        if (_downloadStatus.value != null) return
+
+        val graphicPacksRootDir = context.getExternalFilesDir(null)
+
+        if (graphicPacksRootDir == null) {
+            _downloadStatus.value = GraphicPacksDownloadStatus.ERROR
+            return
+        }
+
+        val oldDownloadJob = downloadJob
+
         downloadJob = viewModelScope.launch {
-            try {
-                GraphicPacksDownloader.download(context) { updateDownloadStatus(it) }
-                refreshGraphicPacks()
-            } catch (_: Exception) {
-                updateDownloadStatus(GraphicPacksDownloadStatus.ERROR)
+            oldDownloadJob?.cancelAndJoin()
+
+            graphicPacksDownloader.download(graphicPacksRootDir).catch {
+                when (it) {
+                    is CancellationException -> _downloadStatus.value = null
+                    else -> _downloadStatus.value = GraphicPacksDownloadStatus.ERROR
+                }
+            }.collect {
+                _downloadStatus.value = it
+
+                if (it == GraphicPacksDownloadStatus.FINISHED_DOWNLOADING) {
+                    refreshGraphicPacks()
+                }
             }
         }
-    }
-
-    fun downloadStatusRead() {
-        _downloadStatus.value = null
     }
 
     fun cancelDownload() {
@@ -209,7 +235,6 @@ class GraphicPacksViewModel : ViewModel() {
         downloadJob = null
         viewModelScope.launch {
             oldDownloadJob.cancelAndJoin()
-            updateDownloadStatus(GraphicPacksDownloadStatus.CANCELED)
         }
     }
 
@@ -244,9 +269,7 @@ class GraphicPacksViewModel : ViewModel() {
         }
         return@combine graphicPackNodes.filter { it.titleIdInstalled }
     }.stateIn(
-        viewModelScope,
-        SharingStarted.WhileSubscribed(5000),
-        emptyList()
+        viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList()
     )
 
     private fun refreshGraphicPacks() {
@@ -266,9 +289,5 @@ class GraphicPacksViewModel : ViewModel() {
 
     init {
         refreshGraphicPacks()
-    }
-
-    companion object {
-        private val GraphicPacksDownloader = GraphicPacksDownloader()
     }
 }

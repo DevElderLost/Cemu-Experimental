@@ -36,6 +36,7 @@ import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,8 +56,12 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.MutableCreationExtras
 import androidx.lifecycle.viewmodel.compose.viewModel
 import info.cemu.cemu.R
+import info.cemu.cemu.common.settings.GamePadPosition
+import info.cemu.cemu.common.settings.HotkeyAction
 import info.cemu.cemu.common.ui.extensions.showMessage
 import info.cemu.cemu.common.ui.localization.tr
+import info.cemu.cemu.emulation.emulatedusbdevices.EmulatedUSBDevicesDialog
+import info.cemu.cemu.emulation.input.HotkeyManager
 import info.cemu.cemu.emulation.inputoverlay.InputOverlaySurface
 import info.cemu.cemu.emulation.inputoverlay.InputOverlaySurfaceView
 import info.cemu.cemu.emulation.inputoverlay.InputOverlaySurfaceView.InputMode.DEFAULT
@@ -69,6 +74,7 @@ import kotlinx.coroutines.launch
 fun EmulationScreen(
     gamePath: String,
     setMotionSensorEnabled: (Boolean) -> Unit,
+    setInputListeningEnabled: (Boolean) -> Unit,
     onQuit: () -> Unit,
     viewModel: EmulationViewModel = viewModel(
         factory = EmulationViewModel.Factory, extras = MutableCreationExtras().apply {
@@ -78,22 +84,54 @@ fun EmulationScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    var showQuitConfirmationDialog by remember { mutableStateOf(false) }
+    var inputOverlayInputMode by rememberSaveable { mutableStateOf(DEFAULT) }
+    var showEmulatedUSBDevices by remember { mutableStateOf(false) }
+
     val emulationError by viewModel.emulationError.collectAsState()
     val isEmulationInitialized by viewModel.isEmulationInitialized.collectAsState()
     val sideMenuState by viewModel.sideMenuState.collectAsState()
-    var showQuitConfirmationDialog by remember { mutableStateOf(false) }
+    val gamePadPosition by viewModel.gamePadPosition.collectAsState()
     val isInputOverlayVisible by viewModel.isInputOverlayVisible.collectAsState()
     val inputOverlaySettings by viewModel.inputOverlaySettings.collectAsState()
-    var inputOverlayInputMode by rememberSaveable { mutableStateOf(DEFAULT) }
+
 
     fun closeDrawer() {
-        scope.launch { drawerState.close() }
+        scope.launch {
+            drawerState.close()
+        }
+    }
+
+    suspend fun toggleMenu() {
+        drawerState.apply {
+            if (isClosed) {
+                open()
+            } else {
+                close()
+            }
+        }
     }
 
     BackHandler {
+        if (drawerState.isAnimationRunning) {
+            return@BackHandler
+        }
+
         scope.launch {
-            drawerState.apply {
-                if (isClosed) open() else close()
+            toggleMenu()
+        }
+    }
+
+    LaunchedEffect(drawerState.isClosed) {
+        setInputListeningEnabled(drawerState.isClosed)
+    }
+
+    LaunchedEffect(Unit) {
+        HotkeyManager.actions.collect { action ->
+            when (action) {
+                HotkeyAction.QUIT -> showQuitConfirmationDialog = true
+                HotkeyAction.TOGGLE_MENU -> toggleMenu()
+                HotkeyAction.SHOW_EMULATED_USB_DEVICES_DIALOG -> showEmulatedUSBDevices = true
             }
         }
     }
@@ -130,12 +168,22 @@ fun EmulationScreen(
                             showQuitConfirmationDialog = true
                             closeDrawer()
                         },
+                        onShowEmulatedUSBDevices = {
+                            showEmulatedUSBDevices = true
+                            closeDrawer()
+                        },
                     )
                 }
             }
         },
     ) {
-        EmulationSurfaces(viewModel)
+        EmulationSurfaces(
+            sideMenuState = sideMenuState,
+            gamePadPosition = gamePadPosition,
+            mainHolderCallback = viewModel.mainHolderCallback,
+            padHolderCallback = viewModel.padHolderCallback,
+            onInitializeEmulation = viewModel::initializeEmulation,
+        )
 
         InputOverlaySurface(
             isVisible = isInputOverlayVisible,
@@ -187,6 +235,12 @@ fun EmulationScreen(
         )
     }
 
+    if (showEmulatedUSBDevices) {
+        EmulatedUSBDevicesDialog(
+            onDismiss = { showEmulatedUSBDevices = false },
+        )
+    }
+
     EmulationTextInputDialog()
 }
 
@@ -210,20 +264,14 @@ private fun EditInputsLayout(
                 horizontalArrangement = Arrangement.spacedBy(36.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                FilledIconButton(
-                    enabled = inputMode != EDIT_POSITION,
-                    onClick = onMoveClick,
-                ) {
+                FilledIconButton(enabled = inputMode != EDIT_POSITION, onClick = onMoveClick) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_move),
                         contentDescription = tr("Move")
                     )
                 }
 
-                FilledIconButton(
-                    enabled = inputMode != EDIT_SIZE,
-                    onClick = onResizeClick,
-                ) {
+                FilledIconButton(enabled = inputMode != EDIT_SIZE, onClick = onResizeClick) {
                     Icon(
                         painter = painterResource(id = R.drawable.ic_resize),
                         contentDescription = tr("Resize"),
@@ -238,6 +286,7 @@ private fun EditInputsLayout(
 private fun EmulationSideMenuContent(
     sideMenuState: SideMenuState,
     updateState: (SideMenuState) -> Unit,
+    onShowEmulatedUSBDevices: () -> Unit,
     onEditInputOverlay: () -> Unit,
     onResetInputOverlay: () -> Unit,
     onQuit: () -> Unit,
@@ -258,6 +307,11 @@ private fun EmulationSideMenuContent(
         label = tr("Show PAD"),
         checked = sideMenuState.isPadVisible,
         onCheckedChange = { updateState(sideMenuState.copy(isPadVisible = it)) },
+    )
+
+    TextButtonItem(
+        label = tr("Emulated USB Devices"),
+        onClick = onShowEmulatedUSBDevices,
     )
 
     CheckboxItem(
@@ -335,9 +389,16 @@ private fun TextButtonItem(
 }
 
 @Composable
-private fun EmulationSurfaces(viewModel: EmulationViewModel) {
-    val sideMenuState by viewModel.sideMenuState.collectAsState()
-    val gamePadPosition by viewModel.gamePadPosition.collectAsState()
+private fun EmulationSurfaces(
+    sideMenuState: SideMenuState,
+    gamePadPosition: GamePadPosition?,
+    mainHolderCallback: SurfaceHolder.Callback,
+    padHolderCallback: SurfaceHolder.Callback,
+    onInitializeEmulation: () -> Unit
+) {
+    if (gamePadPosition == null) {
+        return
+    }
 
     val isVertical = gamePadPosition.isVertical()
     val appearsAfterTV = gamePadPosition.appearsAfterTV()
@@ -348,8 +409,8 @@ private fun EmulationSurfaces(viewModel: EmulationViewModel) {
         EmulationSurface(
             modifier = modifier,
             isTV = true,
-            holderCallback = viewModel.mainHolderCallback,
-            afterInit = { viewModel.initializeEmulation() },
+            holderCallback = mainHolderCallback,
+            afterInit = { onInitializeEmulation() },
         )
     }
 
@@ -359,7 +420,7 @@ private fun EmulationSurfaces(viewModel: EmulationViewModel) {
             EmulationSurface(
                 modifier = modifier,
                 isTV = false,
-                holderCallback = viewModel.padHolderCallback,
+                holderCallback = padHolderCallback,
             )
         }
     }
@@ -456,7 +517,25 @@ private fun EmulationLoadingDialog() {
 }
 
 @Composable
-private fun EmulationErrorDialog(errorMessage: String, onQuit: () -> Unit) {
+private fun EmulationErrorDialog(error: NativeError, onQuit: () -> Unit) {
+    val errorMessage = remember(error) {
+        when (error) {
+            is NativeError.SystemInitializationError -> tr("Failed to initialize")
+
+            is NativeError.RendererInitializationError ->
+                tr("Failed creating renderer: {0}", error.message)
+
+            is NativeError.SurfaceCreationError -> tr("Failed creating surface: {0}", error.message)
+
+            NativeError.GameFilesNotFoundError -> tr("Unable to launch game because the base files were not found.")
+            NativeError.NoDiscKeysError -> tr("Could not decrypt title. Make sure that keys.txt contains the correct disc key for this title.")
+            NativeError.NoTitleTikError -> tr("Could not decrypt title because title.tik is missing.")
+            is NativeError.UnknownTilePrepareError ->
+                tr("Unable to launch game\nPath: {0}", error.launchPath)
+
+            NativeError.LaunchingTitleError -> tr("Failed to launch title")
+        }
+    }
     AlertDialog(
         title = { Text(tr("Error")) },
         text = { Text(errorMessage) },

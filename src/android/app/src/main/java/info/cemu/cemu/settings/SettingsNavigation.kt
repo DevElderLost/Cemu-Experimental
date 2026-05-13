@@ -8,12 +8,14 @@ import androidx.navigation.toRoute
 import info.cemu.cemu.settings.account.AccountSettingsScreen
 import info.cemu.cemu.settings.audio.AudioSettingsScreen
 import info.cemu.cemu.settings.customdrivers.CustomDriversScreen
+import info.cemu.cemu.settings.emulatedusbdevices.EmulatedUSBDevicesSettingsScreen
 import info.cemu.cemu.settings.gamespath.GamePathsScreen
 import info.cemu.cemu.settings.general.GeneralSettingsScreen
 import info.cemu.cemu.settings.graphics.GraphicsSettingsScreen
-import info.cemu.cemu.settings.input.ControllerInputSettingsScreen
+import info.cemu.cemu.settings.input.controller.ControllerInputSettingsScreen
+import info.cemu.cemu.settings.input.device.DeviceInputSettingsScreen
+import info.cemu.cemu.settings.input.hotkeys.HotkeySettingsScreen
 import info.cemu.cemu.settings.input.InputSettingsScreen
-import info.cemu.cemu.settings.input.InputSettingsScreenActions
 import info.cemu.cemu.settings.inputoverlay.InputOverlaySettingsScreen
 import info.cemu.cemu.settings.overlay.OverlaySettingsScreen
 import info.cemu.cemu.settings.userdata.UserDataSettingsScreen
@@ -54,10 +56,19 @@ private object SettingsRoutes {
     object InputSettingsScreenRoute
 
     @Serializable
+    object EmulatedUSBDevicesSettingsScreenRoute
+
+    @Serializable
     data class ControllerInputSettingsScreenRoute(val index: Int)
 
     @Serializable
     object InputOverlaySettingsScreenRoute
+
+    @Serializable
+    object DeviceInputSettingsScreenRoute
+
+    @Serializable
+    object HotkeySettingsScreenRoute
 
     @Serializable
     object AccountSettingsScreenRoute
@@ -71,6 +82,13 @@ fun NavGraphBuilder.settingsNavigation(navController: NavHostController) {
         composable<SettingsRoutes.SettingsHomeScreenRoute> {
             SettingsHomeScreen(
                 navigateBack = { navController.popBackStack() },
+                goToGeneralSettings = { navController.navigate(SettingsRoutes.GeneralSettings) },
+                goToInputSettings = { navController.navigate(SettingsRoutes.InputSettingsRoute) },
+                goToGraphicsSettings = { navController.navigate(SettingsRoutes.GraphicsSettingsScreenRoute) },
+                goToAudioSettings = { navController.navigate(SettingsRoutes.AudioSettingsScreenRoute) },
+                goToOverlaySettings = { navController.navigate(SettingsRoutes.OverlaySettingsScreenRoute) },
+                goToAccountSettings = { navController.navigate(SettingsRoutes.AccountSettingsScreenRoute) },
+                goToEmulatedUSBDevicesSettings = { navController.navigate(SettingsRoutes.EmulatedUSBDevicesSettingsScreenRoute) },
                 actions = SettingsHomeScreenActions(
                     goToGeneralSettings = { navController.navigate(SettingsRoutes.GeneralSettings) },
                     goToInputSettings = { navController.navigate(SettingsRoutes.InputSettingsRoute) },
@@ -105,6 +123,11 @@ fun NavGraphBuilder.settingsNavigation(navController: NavHostController) {
                 navigateBack = { navController.popBackStack() },
             )
         }
+        composable<SettingsRoutes.EmulatedUSBDevicesSettingsScreenRoute> {
+            EmulatedUSBDevicesSettingsScreen(
+                navigateBack = { navController.popBackStack() },
+            )
+        }
         navigation<SettingsRoutes.InputSettingsRoute>(startDestination = SettingsRoutes.InputSettingsScreenRoute) {
             composable<SettingsRoutes.ControllerInputSettingsScreenRoute> { navBackStackEntry ->
                 val controllerIndex =
@@ -114,26 +137,44 @@ fun NavGraphBuilder.settingsNavigation(navController: NavHostController) {
                     controllerIndex = controllerIndex,
                 )
             }
+
+            composable<SettingsRoutes.HotkeySettingsScreenRoute> {
+                HotkeySettingsScreen(
+                    navigateBack = { navController.popBackStack() }
+                )
+            }
+
             composable<SettingsRoutes.InputOverlaySettingsScreenRoute> {
                 InputOverlaySettingsScreen(
                     navigateBack = { navController.popBackStack() }
                 )
             }
+
+            composable<SettingsRoutes.DeviceInputSettingsScreenRoute> {
+                DeviceInputSettingsScreen(
+                    navigateBack = { navController.popBackStack() }
+                )
+            }
+
             composable<SettingsRoutes.InputSettingsScreenRoute> {
                 InputSettingsScreen(
                     navigateBack = { navController.popBackStack() },
-                    actions = InputSettingsScreenActions(
-                        goToInputOverlaySettings = {
-                            navController.navigate(SettingsRoutes.InputOverlaySettingsScreenRoute)
-                        },
-                        goToControllerSettings = { controllerIndex ->
-                            navController.navigate(
-                                SettingsRoutes.ControllerInputSettingsScreenRoute(
-                                    controllerIndex
-                                )
+                    goToHotkeySettings = {
+                        navController.navigate(SettingsRoutes.HotkeySettingsScreenRoute)
+                    },
+                    goToInputOverlaySettings = {
+                        navController.navigate(SettingsRoutes.InputOverlaySettingsScreenRoute)
+                    },
+                    goToControllerSettings = { controllerIndex ->
+                        navController.navigate(
+                            SettingsRoutes.ControllerInputSettingsScreenRoute(
+                                controllerIndex
                             )
-                        },
-                    )
+                        )
+                    },
+                    goToHostInputSettings = {
+                        navController.navigate(SettingsRoutes.DeviceInputSettingsScreenRoute)
+                    },
                 )
             }
         }

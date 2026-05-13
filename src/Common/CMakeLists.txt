@@ -62,8 +62,6 @@ if(ANDROID)
     android/FileStream_saf.h
     android/FilesystemAndroid.cpp
     android/FilesystemAndroid.h
-    cpu_affinity.cpp
-    cpu_affinity.h
   )
 endif()
 
@@ -72,8 +70,6 @@ target_precompile_headers(CemuCommon PRIVATE precompiled.h)
 target_include_directories(CemuCommon PUBLIC "../")
 
 target_link_libraries(CemuCommon PRIVATE
-	Boost::nowide
-	Boost::filesystem
 	glm::glm
 )
 
@@ -86,10 +82,11 @@ if (UNIX AND NOT APPLE AND NOT ANDROID)
 endif()
 
 # PUBLIC because:
+# - boost/nowide/convert.hpp is included in precompiled.h
 # - boost/predef/os.h is included in platform.h
 # - fmt/core.h is included in precompiled.h
 target_link_libraries(CemuCommon PUBLIC
-	Threads::Threads
+	Threads::Threads # necessary because some targets may need -pthreads
 	Boost::nowide
 	Boost::headers
 	fmt::fmt
