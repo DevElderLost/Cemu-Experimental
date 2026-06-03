@@ -1,22 +1,31 @@
-# Cemu Android Port - Odin 3 Optimizations
+# Cemu Android Port - Odin 3 Build
 
-Fork of [SSimco/Cemu](https://github.com/SSimco/Cemu) (Android port) with stability fixes and performance/thermal optimizations targeting the **Ayn Odin 3** (Snapdragon 8 Elite / Adreno 830), though all changes are designed to work safely on any device.
+Fork of [SSimco/Cemu](https://github.com/SSimco/Cemu) (Android port) with stability fixes, Android packaging changes, and ARM64-focused runtime improvements targeting the **Ayn Odin 3** (Snapdragon 8 Elite / Adreno 830). Changes are intended to stay device-safe rather than hardcoding Odin-only behavior.
 
 For general information about Cemu, see the [official website](https://cemu.info) and [main repository](https://github.com/cemu-project/Cemu).
 
 ## Game Status (Odin 3)
 
-| Game | Status | Thermal |
-|------|--------|---------|
-| Twilight Princess HD (US) | Playable | ~45-52C |
-| Wind Waker HD (US) | Playable | ~57-60C |
+| Game | Status | Notes |
+|------|--------|-------|
+| Twilight Princess HD (US) | Playable | Original heap crash fixed |
+| Wind Waker HD (US) | Playable | More GPU/thermal intensive |
 
-## Changes from Upstream
+Thermals depend heavily on device clocks, fan profile, and external tools such as ClusterTune.
+
+## Differences from SSimco / Upstream
 
 ### Android Packaging
 
-**Application ID suffix** (`src/android/app/build.gradle.kts`)
-Changed the Android `applicationId` to `info.cemu.cemu.odin` so this build can be installed alongside SSimco's `info.cemu.cemu` APK without package/signature conflicts during testing and release validation.
+**Two package IDs**
+
+The default build uses `info.cemu.cemu.odin` so it can install alongside the classic Android port package. The release workflow also builds a classic package variant, `info.cemu.cemu`, for frontends such as Daijisho that expect the standard Cemu package name.
+
+Set `ANDROID_APPLICATION_ID=info.cemu.cemu` to build the classic package locally. Leaving it unset builds the Odin package.
+
+**Red launcher icon**
+
+The launcher background was changed from blue to red so this fork is easy to distinguish from SSimco's build on-device.
 
 ### Crash Fixes
 
@@ -26,58 +35,52 @@ Games like Twilight Princess HD rely on heap allocations being zero-initialized 
 **Memory barrier instructions** (`PPCRecompilerImlGen.cpp`, `BackendAArch64.cpp`, etc.)
 Added `PPCREC_IML_TYPE_MEMORY_BARRIER` IML instruction type that emits `dmb ish` on AArch64 for SYNC/ISYNC/EIEIO/DCBF PPC instructions. These were silently ignored before, which is safe on x86 (strong memory model) but incorrect on ARM64 (weak memory model). Also added TWI (trap word immediate) as a no-op.
 
-### CPU Core Affinity Pinning (Android)
+### Android CPU Scheduling
 
-**Problem:** The Snapdragon 8 Elite has 2 prime cores (4.32GHz) and 6 big cores (3.53GHz). When the OS scheduler places emulation threads on prime cores, they generate significantly more heat with no measurable FPS improvement (the emulation workload doesn't benefit from the extra ~20% clock speed).
-
-**Solution:** Added a CPU affinity system that reads each core's max frequency from `/sys/devices/system/cpu/cpuN/cpufreq/cpuinfo_max_freq` at runtime and classifies cores into prime/big/little tiers using frequency thresholds relative to the fastest core. PPC emulation threads and the GPU thread are pinned to big cores, excluding prime cores.
-
-**Auto-adapts** to any SoC topology: 3-tier (prime/big/little), 2-tier (prime/big), or symmetric (uses all cores). No hardcoded core IDs or device-specific logic.
-
-**Impact:** ~10C reduction in SoC temperature with no FPS loss.
-
-*Files: `cpu_affinity.cpp`, `cpu_affinity.h`, `CafeSystem.cpp`, `LatteThread.cpp`, `coreinit_Thread.cpp`, `CMakeLists.txt`*
+Earlier test builds pinned emulation work away from the largest cores for thermal reasons. That was removed in `0.5.1`; current builds leave core selection to Android and external tuning tools. This avoids fighting tools like ClusterTune and avoids device-specific scheduler behavior.
 
 ### Thermal Load Reduction: Spin-Wait Replacement
 
-**Problem:** Multiple hot loops across the emulator used CPU spin-waits (`_mm_pause()`, tight `yield()` loops) that kept cores at 100% utilization even when waiting for events.
+Several hot loops used CPU spin-waits (`_mm_pause()`, tight `yield()` loops) that kept cores active while waiting for events. This fork replaces the worst Android-visible idle waits with sleep/yield patterns:
 
-**Solution:** Replaced spin-waits with proper sleep/yield patterns across the codebase:
-
-| Location | Before | After |
-|----------|--------|-------|
-| PPC scheduler idle | Tight poll loop | 1ms sleep when no runnable threads |
-| VSync driver (non-Windows) | Unimplemented stub | Timer-based 60Hz sleep/wake |
-| GPU async command wait | `_mm_pause()` | 1ms sleep |
-| TCL ring buffer wait | `yield()` | Yield 10x then 100us sleep |
-| GPU command buffer idle | 80x `_mm_pause()` | 1ms sleep |
-| GPU fence wait | Tight poll | 1ms sleep between polls |
-| GPU semaphore wait | Yield 100x, 1ms sleep | Yield 10x, 100us sleep |
-| HLE flip wait | `_mm_pause()` + yield | 1ms sleep |
+| Location | Current behavior |
+|----------|------------------|
+| PPC scheduler idle | Sleeps when no runnable PPC threads exist |
+| VSync driver (non-Windows) | Timer-based 60Hz callback instead of an unimplemented stub |
+| GPU async/fence/flip waits | Sleep/yield instead of pure busy-spin |
+| TCL ring buffer and GPU semaphore waits | Short yield phase, then brief sleep |
 
 *Files: `coreinit_Thread.cpp`, `VsyncDriver.cpp`, `LatteAsyncCommands.cpp`, `TCL.cpp`, `LatteCommandProcessor.cpp`, `LatteThread.cpp`*
 
-### ARM64 SIMD Texture Decoding
-
-Uses NEON SIMD intrinsics and optimized `memcpy` for texture tile reordering on AArch64, replacing the generic scalar C++ paths.
-
 ### ARM64 WFE/SEV Spinlocks
 
-Replaces emulated Wii U OS spinlock `yield()` loops with ARM64 `wfe` (wait for event) / `sev` (signal event) instructions, which put the core into a low-power wait state until signaled instead of busy-spinning.
+Replaces selected spinlock `yield()` loops with ARM64 `wfe` (wait for event) / `sev` (send event), allowing waiting cores to enter a lower-power wait state until signaled.
 
-### Performance Monitoring
+### Profiling Support
 
-Added per-second diagnostic logging for profiling: FPS, SoC temperature, GPU stage timings (draw API, uniforms, index, vertex, MRT, texture decode), render pass break reasons (clear, depth clear, texture load, surface copy, submit, query, FBO change), layout transition counts, memory upload stats, and CPU/GPU-bound classification.
+Adds diagnostic counters/logging for Android performance analysis: FPS, thermal-zone reading, GPU stage timings, render-pass break reasons, layout transitions, texture readbacks, and memory upload stats.
 
 *Files: `LattePerformanceMonitor.cpp`, `LattePerformanceMonitor.h`, plus instrumentation in Vulkan renderer files*
 
 ### Cherry-picked Upstream Fixes
 
-The following fixes were cherry-picked from [cemu-project/Cemu](https://github.com/cemu-project/Cemu):
+Selected fixes from [cemu-project/Cemu](https://github.com/cemu-project/Cemu) have been cherry-picked onto the Android port, including:
 
-- `coreinit: Add and use MEMAllocFromDefaultHeapEx` - allocation alignment
-- `coreinit: Zero-initialize SysAllocators` - stability fix
+- `coreinit: Add and use MEMAllocFromDefaultHeapEx`
+- `coreinit: Zero-initialize SysAllocators`
 - `coreinit: Track memory allocation size for MEMFreeToDefaultHeap`
+- `Vulkan: Skip zero-size readback buffer barriers`
+- `Input: Fix race condition in button mapping access`
+- `RPL: Remove incorrect ref count check`
+- `coreinit: Stub MCP_DemoGetRemainder to 99`
+- `coreinit: Implement OSDynLoad_IsModuleLoaded`
+- `coreinit: Always try to print symbols for PPC stack traces`
+- `Latte: Rework interval tree for vertex/uniform cache`
+- `Latte: Fix rare corruption in buffer cache`
+- `GX2+Latte: Rework GX2CopySurface`
+- `PPCRec: Cleanup and smaller fixes`
+- `PPCAsm` string/condition-register/reloc parsing fixes
+- Vulkan transform-feedback and vertex-attribute cleanup
 
 ## License
 
