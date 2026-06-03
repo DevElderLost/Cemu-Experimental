@@ -30,8 +30,18 @@ env:
 
 jobs:
   build:
-    name: Build and scan APK
+    name: Build and scan APK (${{ matrix.variant }})
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - variant: odin
+            application_id: info.cemu.cemu.odin
+            artifact_suffix: odin
+          - variant: classic
+            application_id: info.cemu.cemu
+            artifact_suffix: classic
 
     steps:
       - name: Checkout repo
@@ -68,6 +78,7 @@ jobs:
           EMULATOR_VERSION_MAJOR: ${{ inputs.version_major }}
           EMULATOR_VERSION_MINOR: ${{ inputs.version_minor }}
           EMULATOR_VERSION_PATCH: ${{ inputs.version_patch }}
+          ANDROID_APPLICATION_ID: ${{ matrix.application_id }}
         run: |
           export JAVA_HOME=$JAVA_HOME_21_X64
 
@@ -90,6 +101,7 @@ jobs:
             VERSION="${VERSION}.${{ inputs.version_patch }}"
           fi
           echo "CEMU_VERSION=$VERSION" >> $GITHUB_ENV
+          echo "CEMU_ARTIFACT_SUFFIX=${{ matrix.artifact_suffix }}" >> $GITHUB_ENV
 
       - name: Strip .comment sections from native libraries
         run: |
@@ -211,7 +223,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Cemu-${{ env.CEMU_VERSION }}-android
+          name: Cemu-${{ env.CEMU_VERSION }}-android-${{ env.CEMU_ARTIFACT_SUFFIX }}
           path: src/android/app/build/outputs/apk/release/*.apk
 
       - name: Create GitHub Release
@@ -220,11 +232,17 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ env.CEMU_VERSION }}"
+          SUFFIX="${{ env.CEMU_ARTIFACT_SUFFIX }}"
           APK_DIR="src/android/app/build/outputs/apk/release"
           APK=$(ls $APK_DIR/*.apk | head -1)
-          mv "$APK" "$APK_DIR/Cemu-${VERSION}-android.apk"
+          FINAL_APK="$APK_DIR/Cemu-${VERSION}-android-${SUFFIX}.apk"
+          mv "$APK" "$FINAL_APK"
 
-          gh release create "v${VERSION}" \
-            --title "Cemu Android ${VERSION}" \
-            --notes "Android release ${VERSION}" \
-            "$APK_DIR/Cemu-${VERSION}-android.apk"
+          if ! gh release view "v${VERSION}" >/dev/null 2>&1; then
+            gh release create "v${VERSION}" \
+              --title "Cemu Android ${VERSION}" \
+              --notes "Android release ${VERSION}" \
+              || gh release view "v${VERSION}" >/dev/null
+          fi
+
+          gh release upload "v${VERSION}" "$FINAL_APK" --clobber
