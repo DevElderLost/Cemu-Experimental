@@ -68,13 +68,14 @@ fun findWindowsPkgConfExecutable(): String? {
 val pkgConfigExecutable = findWindowsPkgConfExecutable()
 
 val cemuDataFilesFolder = "../../../bin"
+val androidApplicationId = System.getenv("ANDROID_APPLICATION_ID")?.takeIf { it.isNotBlank() } ?: "info.cemu.cemu.odin"
 
 android {
     namespace = "info.cemu.cemu"
     compileSdk = 36
     ndkVersion = "29.0.14206865"
     defaultConfig {
-        applicationId = "info.cemu.cemu.odin"
+        applicationId = androidApplicationId
         minSdk = 30
         targetSdk = 35
         versionName = getVersionName()
